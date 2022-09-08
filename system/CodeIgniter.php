@@ -13,6 +13,8 @@ namespace CodeIgniter;
 
 use Closure;
 use CodeIgniter\Cache\ResponseCache;
+use CodeIgniter\Debug\Debug;
+use CodeIgniter\Debug\ProvidesDefaultHandlers;
 use CodeIgniter\Debug\Timer;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Exceptions\FrameworkException;
@@ -186,6 +188,29 @@ class CodeIgniter
      */
     public function initialize()
     {
+        // Define environment variables
+        $this->bootstrapEnvironment();
+
+        // Setup Exception Handling
+        if (! config(Feature::class)->enhancedErrorHandling) {
+            Services::exceptions()->initialize();
+        } else {
+            $debug = Services::debug();
+
+            if ($debug instanceof ProvidesDefaultHandlers) {
+                foreach ($debug->getDefaultHandlers() as $handler) {
+                    $debug->append($handler);
+                }
+            }
+
+            $debug->register();
+        }
+
+        // Run this check for manual installations
+        if (! is_file(COMPOSER_PATH)) {
+            $this->resolvePlatformExtensions(); // @codeCoverageIgnore
+        }
+
         // Set default locale on the server
         Locale::setDefault($this->config->defaultLocale ?? 'en');
 

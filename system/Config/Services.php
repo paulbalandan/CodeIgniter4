@@ -20,6 +20,8 @@ use CodeIgniter\CLI\Commands;
 use CodeIgniter\CodeIgniter;
 use CodeIgniter\Database\ConnectionInterface;
 use CodeIgniter\Database\MigrationRunner;
+use CodeIgniter\Debug\Debug;
+use CodeIgniter\Debug\DebugInterface;
 use CodeIgniter\Debug\Exceptions;
 use CodeIgniter\Debug\Iterator;
 use CodeIgniter\Debug\Timer;
@@ -72,6 +74,7 @@ use Config\ContentSecurityPolicy as CSPConfig;
 use Config\Database;
 use Config\Email as EmailConfig;
 use Config\Encryption as EncryptionConfig;
+use Config\ErrorHandling;
 use Config\Exceptions as ExceptionsConfig;
 use Config\Filters as FiltersConfig;
 use Config\Format as FormatConfig;
@@ -215,6 +218,27 @@ class Services extends BaseService
             $response,
             $options
         );
+    }
+
+    /**
+     * The DebugInterface provides enhanced error handling experience.
+     */
+    public static function debug(?ErrorHandling $config = null, bool $getShared = true): DebugInterface
+    {
+        if ($getShared) {
+            return static::getSharedInstance('debug', $config);
+        }
+
+        /** @var ErrorHandling $config */
+        $config ??= config('ErrorHandling');
+
+        $customDebug = $config->customDebugHandler;
+
+        if ($customDebug === null) {
+            return new Debug();
+        }
+
+        return new $customDebug();
     }
 
     /**

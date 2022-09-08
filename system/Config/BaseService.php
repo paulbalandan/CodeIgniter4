@@ -23,6 +23,7 @@ use CodeIgniter\CLI\Commands;
 use CodeIgniter\CodeIgniter;
 use CodeIgniter\Database\ConnectionInterface;
 use CodeIgniter\Database\MigrationRunner;
+use CodeIgniter\Debug\DebugInterface;
 use CodeIgniter\Debug\Exceptions;
 use CodeIgniter\Debug\Iterator;
 use CodeIgniter\Debug\Timer;
@@ -66,6 +67,7 @@ use Config\Autoload;
 use Config\Cache;
 use Config\ContentSecurityPolicy as CSPConfig;
 use Config\Encryption;
+use Config\ErrorHandling;
 use Config\Exceptions as ConfigExceptions;
 use Config\Filters as ConfigFilters;
 use Config\Format as ConfigFormat;
@@ -108,6 +110,7 @@ use Config\View as ConfigView;
  * @method static void                       createRequest(App $config, bool $isCli = false)
  * @method static ContentSecurityPolicy      csp(CSPConfig $config = null, $getShared = true)
  * @method static CURLRequest                curlrequest($options = [], ResponseInterface $response = null, App $config = null, $getShared = true)
+ * @method static DebugInterface             debug(?ErrorHandling $config = null, bool $getShared = true)
  * @method static Email                      email($config = null, $getShared = true)
  * @method static EncrypterInterface         encrypter(Encryption $config = null, $getShared = false)
  * @method static Exceptions                 exceptions(ConfigExceptions $config = null, $getShared = true)
