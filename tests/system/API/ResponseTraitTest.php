@@ -753,7 +753,7 @@ final class ResponseTraitTest extends CIUnitTestCase
     public function testPaginateWithQueryBuilder(): void
     {
         // Mock the database and builder
-        $db = $this->createMock(BaseConnection::class);
+        $db = $this->createStub(BaseConnection::class);
 
         $builder = $this->getMockBuilder(BaseBuilder::class)
             ->setConstructorArgs(['test_table', $db])
@@ -1100,7 +1100,7 @@ final class ResponseTraitTest extends CIUnitTestCase
         ];
 
         // Mock the database and builder
-        $db = $this->createMock(BaseConnection::class);
+        $db = $this->createStub(BaseConnection::class);
 
         $builder = $this->getMockBuilder(BaseBuilder::class)
             ->setConstructorArgs(['test_table', $db])

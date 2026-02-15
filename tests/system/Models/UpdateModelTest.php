@@ -696,6 +696,7 @@ final class UpdateModelTest extends LiveModelTestCase
 
         $user           = $model->find(1);
         $updateAtBefore = $user->updated_at;
+        $this->assertInstanceOf(User::class, $user);
 
         // updates the Entity without changes.
         $result = $model->update(1, $user);
