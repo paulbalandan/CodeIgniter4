@@ -427,9 +427,7 @@ class ContentSecurityPolicy
      */
     public function finalize(ResponseInterface $response)
     {
-        if ($this->autoNonce) {
-            $this->generateNonces($response);
-        }
+        $this->generateNonces($response);
 
         $this->buildHeaders($response);
     }
@@ -892,6 +890,10 @@ class ContentSecurityPolicy
      */
     protected function generateNonces(ResponseInterface $response)
     {
+        if ($this->enabled() && ! $this->autoNonce) {
+            return;
+        }
+
         $body = (string) $response->getBody();
 
         if ($body === '') {
@@ -905,6 +907,10 @@ class ContentSecurityPolicy
         $pattern = sprintf('/(%s|%s)/', preg_quote($this->styleNonceTag, '/'), preg_quote($this->scriptNonceTag, '/'));
 
         $body = preg_replace_callback($pattern, function ($match) use ($jsonEscape): string {
+            if (! $this->enabled()) {
+                return '';
+            }
+
             $nonce = $match[0] === $this->styleNonceTag ? $this->getStyleNonce() : $this->getScriptNonce();
             $attr  = 'nonce="' . $nonce . '"';
 
@@ -923,6 +929,10 @@ class ContentSecurityPolicy
      */
     protected function buildHeaders(ResponseInterface $response)
     {
+        if (! $this->enabled()) {
+            return;
+        }
+
         $response->setHeader('Content-Security-Policy', []);
         $response->setHeader('Content-Security-Policy-Report-Only', []);
         $response->setHeader('Reporting-Endpoints', []);
