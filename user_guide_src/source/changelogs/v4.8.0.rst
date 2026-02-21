@@ -26,6 +26,11 @@ Behavior Changes
 Interface Changes
 =================
 
+**NOTE:** If you've implemented your own classes that implement these interfaces from scratch, you will need to
+        update your implementations to include the new methods or method changes to ensure compatibility.
+
+- **Security:** The ``SecurityInterface``'s ``verify()`` method now has a native return type of ``static``.
+
 Method Signature Changes
 ========================
 
@@ -43,6 +48,17 @@ Removed Deprecated Items
     - ``CodeIgniter\Debug\Exceptions::cleanPath()``
     - ``CodeIgniter\Debug\Exceptions::describeMemory()``
     - ``CodeIgniter\Debug\Exceptions::highlightFile()``
+- **Security:** Removed the following properties and methods deprecated:
+    - ``CodeIgniter\Security\SecurityInterface::sanitizeFilename()`` (deprecated since v4.6.2)
+    - ``CodeIgniter\Security\Security::sanitizeFilename()`` (deprecated since v4.6.2)
+    - ``CodeIgniter\Security\Security::$csrfProtection`` (deprecated since v4.4.0)
+    - ``CodeIgniter\Security\Security::$tokenRandomize`` (deprecated since v4.4.0)
+    - ``CodeIgniter\Security\Security::$tokenName`` (deprecated since v4.4.0)
+    - ``CodeIgniter\Security\Security::$headerName`` (deprecated since v4.4.0)
+    - ``CodeIgniter\Security\Security::$expires`` (deprecated since v4.4.0)
+    - ``CodeIgniter\Security\Security::$regenerate`` (deprecated since v4.4.0)
+    - ``CodeIgniter\Security\Security::$redirect`` (deprecated since v4.4.0)
+    - ``CodeIgniter\Security\Security::$sameSite`` (deprecated since v4.4.0)
 
 ************
 Enhancements
