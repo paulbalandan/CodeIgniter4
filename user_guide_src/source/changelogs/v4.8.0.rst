@@ -23,6 +23,8 @@ BREAKING
 Behavior Changes
 ================
 
+- **Commands:** The ``filter:check`` command now requires the HTTP method argument to be uppercase (e.g., ``spark filter:check GET /`` instead of ``spark filter:check get /``).
+
 Interface Changes
 =================
 
