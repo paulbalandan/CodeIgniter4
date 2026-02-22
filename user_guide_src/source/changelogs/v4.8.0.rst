@@ -127,6 +127,8 @@ Others
 Model
 =====
 
+- Added new ``chunkRows()`` method to ``CodeIgniter\Model`` for processing large datasets in smaller chunks.
+
 Libraries
 =========
 
