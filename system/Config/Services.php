@@ -18,6 +18,7 @@ use CodeIgniter\Cache\CacheInterface;
 use CodeIgniter\Cache\ResponseCache;
 use CodeIgniter\CLI\Commands;
 use CodeIgniter\CodeIgniter;
+use CodeIgniter\Context\Context;
 use CodeIgniter\Database\ConnectionInterface;
 use CodeIgniter\Database\MigrationRunner;
 use CodeIgniter\Debug\Exceptions;
@@ -867,5 +868,17 @@ class Services extends BaseService
         }
 
         return new Typography();
+    }
+
+    /**
+     * The Context class provides a way to store and retrieve static data throughout requests.
+     */
+    public static function context(bool $getShared = true): Context
+    {
+        if ($getShared) {
+            return static::getSharedInstance('context');
+        }
+
+        return new Context();
     }
 }
