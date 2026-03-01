@@ -19,6 +19,7 @@ Message Changes
 ***************
 
 - Updated ``Images.unsupportedImageCreate``.
+- Renamed the ``Validation.valid_cc_num`` key to ``Validation.valid_cc_number``.
 
 *******
 Changes
@@ -58,6 +59,7 @@ Bugs Fixed
 - **Toolbar:** Fixed a bug where the standalone toolbar page loaded from ``?debugbar_time=...`` was not interactive.
 - **Toolbar:** Fixed a bug in the Routes panel where only the first route parameter was converted to an input field on hover.
 - **Testing:** Fixed a bug in ``FeatureTestTrait::withRoutes()`` where invalid HTTP methods were not properly validated, thus passing them all to ``RouteCollection``.
+- **Validation:** Rule ``valid_cc_number`` now has the correct translation.
 - **View:** Fixed a bug where ``View`` would throw an error if the ``appOverridesFolder`` config property was not defined.
 
 See the repo's
