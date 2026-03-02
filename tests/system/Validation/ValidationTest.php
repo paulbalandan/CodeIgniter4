@@ -1850,11 +1850,215 @@ class ValidationTest extends CIUnitTestCase
         );
         $this->assertFalse($this->validation->run($data));
         $this->assertSame(
-            // The data for `contacts.*.name` does not exist. So it is interpreted
-            // as `null`, and this error message returns.
-            ['contacts.*.name' => 'The contacts.*.name field is required.'],
+            // `contacts.just` exists but has no `name` key, so null is injected
+            // and the error is reported on the concrete path.
+            ['contacts.just.name' => 'The contacts.*.name field is required.'],
             $this->validation->getErrors(),
         );
+    }
+
+    public function testRequiredWildcardFailsWhenSomeElementsMissingKey(): void
+    {
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => 'Fred', 'age' => 20],
+                    ['age' => 21],
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'required']);
+        $this->assertFalse($this->validation->run($data));
+        $this->assertSame(
+            ['contacts.friends.1.name' => 'The contacts.friends.*.name field is required.'],
+            $this->validation->getErrors(),
+        );
+    }
+
+    public function testRequiredWildcardFailsForEachMissingElement(): void
+    {
+        // One element has the key (creating a non-empty initial match set),
+        // the other two are missing it - each missing element gets its own error.
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => 'Fred', 'age' => 20],
+                    ['age' => 21],
+                    ['age' => 22],
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'required']);
+        $this->assertFalse($this->validation->run($data));
+        $this->assertSame(
+            [
+                'contacts.friends.1.name' => 'The contacts.friends.*.name field is required.',
+                'contacts.friends.2.name' => 'The contacts.friends.*.name field is required.',
+            ],
+            $this->validation->getErrors(),
+        );
+    }
+
+    public function testWildcardNonRequiredRuleFiresForMissingElements(): void
+    {
+        // A missing key is treated as null, consistent with non-wildcard behaviour.
+        // Use `if_exist` or `permit_empty` to explicitly skip absent keys.
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => 'Fred'],  // passes in_list
+                    ['age' => 21],       // key absent - null injected, in_list fails
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'in_list[Fred,Wilma]']);
+        $this->assertFalse($this->validation->run($data));
+        $this->assertSame(
+            ['contacts.friends.1.name' => 'The contacts.friends.*.name field must be one of: Fred,Wilma.'],
+            $this->validation->getErrors(),
+        );
+    }
+
+    public function testWildcardIfExistRequiredSkipsMissingElements(): void
+    {
+        // `if_exist` must short-circuit before `required` fires for elements
+        // whose key is absent from the data structure.
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => 'Fred'],  // exists and non-empty - passes
+                    ['age' => 21],       // key absent - if_exist skips it
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'if_exist|required']);
+        $this->assertTrue($this->validation->run($data));
+        $this->assertSame([], $this->validation->getErrors());
+    }
+
+    public function testWildcardPermitEmptySkipsMissingElements(): void
+    {
+        // `permit_empty` treats null as empty and short-circuits remaining rules,
+        // so both an explicitly empty value and an absent key (injected as null) pass.
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => ''],  // exists but empty - permit_empty lets it through
+                    ['age' => 21],   // key absent - null injected, permit_empty lets it through
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'permit_empty|min_length[2]']);
+        $this->assertTrue($this->validation->run($data));
+        $this->assertSame([], $this->validation->getErrors());
+    }
+
+    public function testWildcardRequiredWithFailsForMissingElementWhenConditionMet(): void
+    {
+        // The missing key is injected as null. When the condition field is present
+        // the rule fires and the missing element generates an error.
+        $data = [
+            'has_friends' => '1',
+            'contacts'    => [
+                'friends' => [
+                    ['name' => 'Fred', 'age' => 20],  // passes
+                    ['age' => 21],                    // missing name, condition met - error
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'required_with[has_friends]']);
+        $this->assertFalse($this->validation->run($data));
+        $this->assertSame(
+            ['contacts.friends.1.name' => 'The contacts.friends.*.name field is required when has_friends is present.'],
+            $this->validation->getErrors(),
+        );
+    }
+
+    public function testWildcardRequiredWithPassesForMissingElementWhenConditionNotMet(): void
+    {
+        // The missing key is injected as null, but required_with passes because
+        // the condition field is absent, so no error is generated.
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => 'Fred', 'age' => 20],  // passes
+                    ['age' => 21],                    // missing name, condition absent - ok
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'required_with[has_friends]']);
+        $this->assertTrue($this->validation->run($data));
+        $this->assertSame([], $this->validation->getErrors());
+    }
+
+    public function testWildcardRequiredNoFalsePositiveForMissingIntermediateSegment(): void
+    {
+        // users.1 has no `contacts` key at all - an intermediate segment is
+        // absent, not the leaf. Only the leaf-absent branch (users.0.contacts.1)
+        // should produce an error; the entirely-missing branch must be silent.
+        $data = [
+            'users' => [
+                [
+                    'contacts' => [
+                        ['name' => 'Alice'],  // leaf present
+                        ['age' => 20],        // leaf absent - error
+                    ],
+                ],
+                ['age' => 30],  // intermediate segment `contacts` missing - no error
+            ],
+        ];
+
+        $this->validation->setRules(['users.*.contacts.*.name' => 'required']);
+        $this->assertFalse($this->validation->run($data));
+        $this->assertSame(
+            ['users.0.contacts.1.name' => 'The users.*.contacts.*.name field is required.'],
+            $this->validation->getErrors(),
+        );
+    }
+
+    public function testWildcardFieldExistsFailsWhenSomeElementsMissingKey(): void
+    {
+        // field_exists uses dotKeyExists against the whole wildcard pattern, so
+        // it reports on the template field rather than individual concrete paths
+        // (unlike `required`, which reports per concrete path).
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => 'Fred', 'age' => 20],
+                    ['age' => 21],  // 'name' key absent
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'field_exists']);
+        $this->assertFalse($this->validation->run($data));
+        $this->assertSame(
+            ['contacts.friends.*.name' => 'The contacts.friends.*.name field must exist.'],
+            $this->validation->getErrors(),
+        );
+    }
+
+    public function testWildcardFieldExistsPassesWhenAllElementsHaveKey(): void
+    {
+        $data = [
+            'contacts' => [
+                'friends' => [
+                    ['name' => 'Fred', 'age' => 20],
+                    ['name' => 'Wilma', 'age' => 25],
+                ],
+            ],
+        ];
+
+        $this->validation->setRules(['contacts.friends.*.name' => 'field_exists']);
+        $this->assertTrue($this->validation->run($data));
+        $this->assertSame([], $this->validation->getErrors());
     }
 
     /**
