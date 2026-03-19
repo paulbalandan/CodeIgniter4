@@ -208,56 +208,34 @@ final class UpdateModelTest extends LiveModelTestCase
     public function testUpdateBatchWithEntity(): void
     {
         $entity1 = new class () extends Entity {
-            protected $id;
-            protected $name;
-            protected $email;
-            protected $country;
-            protected $deleted;
-            protected $created_at;
-            protected $updated_at;
-            protected $_options = [
-                'datamap' => [],
-                'dates'   => [
-                    'created_at',
-                    'updated_at',
-                    'deleted_at',
-                ],
-                'casts' => [],
+            protected $attributes = [
+                'id'         => null,
+                'name'       => null,
+                'country'    => null,
+                'deleted_at' => null,
+            ];
+            protected $dates = [
+                'created_at',
+                'updated_at',
+                'deleted_at',
             ];
         };
 
-        $entity2 = new class () extends Entity {
-            protected $id;
-            protected $name;
-            protected $email;
-            protected $country;
-            protected $deleted;
-            protected $created_at;
-            protected $updated_at;
-            protected $_options = [
-                'datamap' => [],
-                'dates'   => [
-                    'created_at',
-                    'updated_at',
-                    'deleted_at',
-                ],
-                'casts' => [],
-            ];
-        };
+        $entity2 = clone $entity1;
 
-        $entity1->id      = 1;
-        $entity1->name    = 'Jones Martin';
-        $entity1->country = 'India';
-        $entity1->deleted = 0;
+        $entity1->id         = 1;
+        $entity1->name       = 'Jones Martin';
+        $entity1->country    = 'India';
+        $entity1->deleted_at = null;
         $entity1->syncOriginal();
         // Update the entity.
         $entity1->country = 'China';
 
         // This entity is not updated.
-        $entity2->id      = 4;
-        $entity2->name    = 'Jones Martin';
-        $entity2->country = 'India';
-        $entity2->deleted = 0;
+        $entity2->id         = 4;
+        $entity2->name       = 'Jones Martin';
+        $entity2->country    = 'India';
+        $entity2->deleted_at = null;
         $entity2->syncOriginal();
 
         $model = $this->createModel(UserModel::class);
@@ -399,29 +377,27 @@ final class UpdateModelTest extends LiveModelTestCase
         $this->createModel(UserModel::class);
 
         $entity = new class () extends Entity {
-            protected $id;
-            protected $name;
-            protected $email;
-            protected $country;
-            protected $deleted;
-            protected $created_at;
-            protected $updated_at;
-            protected $_options = [
-                'datamap' => [],
-                'dates'   => [
-                    'created_at',
-                    'updated_at',
-                    'deleted_at',
-                ],
-                'casts' => [],
+            protected $attributes = [
+                'id'         => null,
+                'name'       => null,
+                'email'      => null,
+                'country'    => null,
+                'deleted_at' => null,
+                'created_at' => null,
+                'updated_at' => null,
+            ];
+            protected $dates = [
+                'created_at',
+                'updated_at',
+                'deleted_at',
             ];
         };
 
-        $entity->id      = 1;
-        $entity->name    = 'Jones Martin';
-        $entity->email   = 'jones@example.org';
-        $entity->country = 'India';
-        $entity->deleted = 0;
+        $entity->id         = 1;
+        $entity->name       = 'Jones Martin';
+        $entity->email      = 'jones@example.org';
+        $entity->country    = 'India';
+        $entity->deleted_at = null;
 
         $id = $this->model->insert($entity);
 
