@@ -56,6 +56,9 @@ on:
         type: string
         required: false
 
+permissions:
+  contents: read
+
 env:
   NLS_LANG: 'AMERICAN_AMERICA.UTF8'
   NLS_DATE_FORMAT: 'YYYY-MM-DD HH24:MI:SS'
@@ -65,7 +68,7 @@ env:
 jobs:
   tests:
     name: ${{ inputs.job-name }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     # Service containers cannot be extracted to caller workflows yet
     services:
@@ -97,7 +100,7 @@ jobs:
           --health-retries=3
 
       mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
+        image: mcr.microsoft.com/mssql/server:2025-CU2-ubuntu-24.04
         env:
           MSSQL_SA_PASSWORD: 1Secure*Password1
           ACCEPT_EULA: Y
@@ -140,29 +143,47 @@ jobs:
           - 11211:11211
 
     steps:
+      - name: Install mssql-tools on runner
+        if: ${{ inputs.db-platform == 'SQLSRV' }}
+        run: |
+          # Detect Ubuntu version used by the runner (fallback to 24.04)
+          DISTRO=$(lsb_release -rs 2>/dev/null || echo '24.04')
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl -sSL https://packages.microsoft.com/config/ubuntu/${DISTRO}/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18 unixodbc-dev
+
+          # Make sqlcmd available to subsequent steps
+          echo "/opt/mssql-tools18/bin" >> $GITHUB_PATH
+
       - name: Create database for MSSQL Server
         if: ${{ inputs.db-platform == 'SQLSRV' }}
-        run: sqlcmd -S 127.0.0.1 -U sa -P 1Secure*Password1 -Q "CREATE DATABASE test COLLATE Latin1_General_100_CS_AS_SC_UTF8"
+        run: |
+          sqlcmd -S 127.0.0.1 \
+            -U sa -P 1Secure*Password1 \
+            -N -C \
+            -Q "CREATE DATABASE test COLLATE Latin1_General_100_CS_AS_SC_UTF8"
 
       - name: Install latest ImageMagick
         if: ${{ contains(inputs.extra-extensions, 'imagick') }}
         run: |
           sudo apt-get update
-          sudo apt-get install --reinstall libgs9-common fonts-noto-mono libgs9:amd64 libijs-0.35:amd64 fonts-urw-base35 ghostscript poppler-data libjbig2dec0:amd64 libopenjp2-7:amd64 fonts-droid-fallback fonts-dejavu-core
-          sudo apt-get install -y gsfonts libmagickwand-dev imagemagick
-          sudo apt-get install --fix-broken
+          sudo apt-get install -y imagemagick libmagickwand-dev ghostscript poppler-data libjbig2dec0:amd64 libopenjp2-7:amd64
 
       - name: Checkout base branch for PR
         if: github.event_name == 'pull_request'
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.base_ref }}
+          persist-credentials: false
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # 2.37.0
         with:
           php-version: ${{ inputs.php-version }}
           tools: composer
@@ -173,14 +194,15 @@ jobs:
           COVERAGE_DRIVER: ${{ inputs.enable-coverage && 'xdebug' || 'none' }}
 
       - name: Setup global environment variables
+        id: setup-env
         run: |
-          echo "COMPOSER_CACHE_FILES_DIR=$(composer config cache-files-dir)" >> $GITHUB_ENV
-          echo "ARTIFACT_NAME=${{ inputs.job-id || github.job }}-php-${{ inputs.php-version }}-db-${{ inputs.db-platform || 'none' }}${{ inputs.mysql-version || '' }}" >> $GITHUB_ENV
+          echo "COMPOSER_CACHE_FILES_DIR=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+          echo "ARTIFACT_NAME=${{ inputs.job-id || github.job }}-php-${{ inputs.php-version }}-db-${{ inputs.db-platform || 'none' }}${{ inputs.mysql-version || '' }}" >> $GITHUB_OUTPUT
 
       - name: Cache dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
-          path: ${{ env.COMPOSER_CACHE_FILES_DIR }}
+          path: ${{ steps.setup-env.outputs.COMPOSER_CACHE_FILES_DIR }}
           key: ${{ inputs.job-id || github.job }}-php-${{ inputs.php-version }}-db-${{ inputs.db-platform || 'none' }}-${{ hashFiles('**/composer.*') }}
           restore-keys: |
             ${{ inputs.job-id || github.job }}-php-${{ inputs.php-version }}-db-${{ inputs.db-platform || 'none' }}-
@@ -189,7 +211,7 @@ jobs:
 
       - name: Cache PHPUnit's static analysis cache
         if: ${{ inputs.enable-artifact-upload }}
-        uses: actions/cache@v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: build/.phpunit.cache/code-coverage
           key: phpunit-code-coverage-${{ hashFiles('**/phpunit.*') }}
@@ -202,14 +224,15 @@ jobs:
           composer update --ansi ${{ inputs.extra-composer-options }}
 
       - name: Compute additional PHPUnit options
+        id: phpunit-options
         run: |
-          echo "EXTRA_PHPUNIT_OPTIONS=${{ format('{0} {1} {2}', env.GROUP_OPTION, env.COVERAGE_OPTION, inputs.extra-phpunit-options) }}" >> $GITHUB_ENV
+          echo "EXTRA_PHPUNIT_OPTIONS=${{ format('{0} {1} {2}', env.GROUP_OPTION, env.COVERAGE_OPTION, inputs.extra-phpunit-options) }}" >> $GITHUB_OUTPUT
         env:
-          COVERAGE_OPTION: ${{ inputs.enable-coverage && format('--coverage-php build/cov/coverage-{0}.cov', env.ARTIFACT_NAME) || '--no-coverage' }}
+          COVERAGE_OPTION: ${{ inputs.enable-coverage && format('--coverage-php build/cov/coverage-{0}.cov', steps.setup-env.outputs.ARTIFACT_NAME) || '--no-coverage' }}
           GROUP_OPTION: ${{ inputs.group-name && format('--group {0}', inputs.group-name) || '' }}
 
       - name: Run tests
-        run: script -e -c "vendor/bin/phpunit --color=always ${{ env.EXTRA_PHPUNIT_OPTIONS }}"
+        run: script -e -c "vendor/bin/phpunit --color=always ${{ steps.phpunit-options.outputs.EXTRA_PHPUNIT_OPTIONS }}"
         env:
           DB: ${{ inputs.db-platform }}
           TACHYCARDIA_MONITOR_GA: ${{ inputs.enable-profiling && 'enabled' || '' }}
@@ -218,9 +241,9 @@ jobs:
 
       - name: Upload coverage results as artifact
         if: ${{ inputs.enable-artifact-upload }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: build/cov/coverage-${{ env.ARTIFACT_NAME }}.cov
+          name: ${{ steps.setup-env.outputs.ARTIFACT_NAME }}
+          path: build/cov/coverage-${{ steps.setup-env.outputs.ARTIFACT_NAME }}.cov
           if-no-files-found: error
           retention-days: 1

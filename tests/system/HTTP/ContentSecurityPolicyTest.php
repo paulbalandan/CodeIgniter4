@@ -900,6 +900,48 @@ final class ContentSecurityPolicyTest extends CIUnitTestCase
         );
     }
 
+    public function testGetScriptNonceAddsNonceToScriptSrcElemWhenConfigured(): void
+    {
+        $this->csp->clearDirective('script-src-elem');
+        $this->csp->addScriptSrcElem('cdn.example.com');
+        $nonce = $this->csp->getScriptNonce();
+        $this->csp->finalize($this->response);
+
+        $directives = $this->getCspDirectives($this->response->getHeaderLine('Content-Security-Policy'));
+        $this->assertContains("script-src-elem cdn.example.com 'nonce-{$nonce}'", $directives);
+    }
+
+    public function testGetScriptNonceDoesNotAddNonceToScriptSrcElemWhenCleared(): void
+    {
+        $this->csp->clearDirective('script-src-elem');
+        $this->csp->getScriptNonce();
+        $this->csp->finalize($this->response);
+
+        $header = $this->response->getHeaderLine('Content-Security-Policy');
+        $this->assertStringNotContainsString('script-src-elem', $header);
+    }
+
+    public function testGetStyleNonceAddsNonceToStyleSrcElemWhenConfigured(): void
+    {
+        $this->csp->clearDirective('style-src-elem');
+        $this->csp->addStyleSrcElem('cdn.example.com');
+        $nonce = $this->csp->getStyleNonce();
+        $this->csp->finalize($this->response);
+
+        $directives = $this->getCspDirectives($this->response->getHeaderLine('Content-Security-Policy'));
+        $this->assertContains("style-src-elem cdn.example.com 'nonce-{$nonce}'", $directives);
+    }
+
+    public function testGetStyleNonceDoesNotAddNonceToStyleSrcElemWhenCleared(): void
+    {
+        $this->csp->clearDirective('style-src-elem');
+        $this->csp->getStyleNonce();
+        $this->csp->finalize($this->response);
+
+        $header = $this->response->getHeaderLine('Content-Security-Policy');
+        $this->assertStringNotContainsString('style-src-elem', $header);
+    }
+
     #[PreserveGlobalState(false)]
     #[RunInSeparateProcess]
     public function testHeaderScriptNonceEmittedOnceGetScriptNonceCalled(): void
@@ -936,5 +978,41 @@ final class ContentSecurityPolicyTest extends CIUnitTestCase
         $this->assertNotContains('style-src css.example.com', $directives);
         $this->assertNotContains('report-uri http://example.com/csp/reports', $directives);
         $this->assertNotContains('report-to default', $directives);
+    }
+
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    public function testGenerateNoncesReplacesPlaceholdersInHtml(): void
+    {
+        $body = '<style {csp-style-nonce}>body{}</style><script {csp-script-nonce}>alert(1)</script>';
+
+        $this->response->setBody($body);
+        $this->csp->finalize($this->response);
+
+        $result = $this->response->getBody();
+
+        $this->assertMatchesRegularExpression('/<style nonce="[A-Za-z0-9+\/=]+">/', $result);
+        $this->assertMatchesRegularExpression('/<script nonce="[A-Za-z0-9+\/=]+">/', $result);
+        $this->assertIsString($result);
+        $this->assertStringNotContainsString('{csp-style-nonce}', $result);
+        $this->assertStringNotContainsString('{csp-script-nonce}', $result);
+    }
+
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    public function testGenerateNoncesEscapesQuotesInJsonResponse(): void
+    {
+        $data = json_encode(['html' => '<script {csp-script-nonce}>alert(1)</script>']);
+
+        $this->response->setContentType('application/json');
+        $this->response->setBody($data);
+        $this->csp->finalize($this->response);
+
+        $result = $this->response->getBody();
+        $parsed = json_decode($result, true);
+
+        $this->assertSame(JSON_ERROR_NONE, json_last_error());
+        $this->assertNotNull($parsed);
+        $this->assertMatchesRegularExpression('/nonce="[A-Za-z0-9+\/=]+"/', $parsed['html']);
     }
 }

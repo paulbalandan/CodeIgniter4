@@ -30,13 +30,8 @@ final class InsertTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 
-    /**
-     * @var Forge
-     */
-    public $forge;
-
-    protected $refresh = true;
-    protected $seed    = CITestSeeder::class;
+    protected $seed = CITestSeeder::class;
+    private Forge $forge;
 
     public function testInsert(): void
     {
@@ -93,26 +88,10 @@ final class InsertTest extends CIUnitTestCase
     {
         $this->expectException(DatabaseException::class);
 
-        $data = [
-            [
-                'name' => 'Grocery Sales',
-            ],
-            [
-                'name' => null,
-            ],
-        ];
-
-        $db = $this->db;
-
-        if ($this->db->DBDriver === 'MySQLi') {
-            // strict mode is required for MySQLi to throw an exception here
-            $config                    = config('Database');
-            $config->tests['strictOn'] = true;
-
-            $db = Database::connect($config->tests);
-        }
-
-        $db->table('job')->insertBatch($data);
+        $this->db->table('job')->insertBatch([
+            ['name' => 'Grocery Sales'],
+            ['name' => null],
+        ]);
     }
 
     public function testReplaceWithNoMatchingData(): void
@@ -295,5 +274,19 @@ final class InsertTest extends CIUnitTestCase
         $this->seeInDatabase('user', ['name' => 'New User2 user2']);
 
         $this->forge->dropTable('user2', true);
+    }
+
+    public function testInsertWithTooLongCharactersThrowsError(): void
+    {
+        if ($this->db->DBDriver === 'SQLite3') {
+            $this->markTestSkipped('SQLite does not enforce VARCHAR length constraints.');
+        }
+
+        $this->expectException(DatabaseException::class);
+
+        $this->db->table('misc')->insert([
+            'key'   => 'too_long',
+            'value' => str_repeat('a', 401), // 'value' is VARCHAR(400), so this should throw an error
+        ]);
     }
 }

@@ -36,6 +36,15 @@ final class CLITest extends CIUnitTestCase
         parent::setUp();
 
         Services::injectMock('superglobals', new Superglobals());
+
+        CLI::init();
+    }
+
+    protected function tearDown(): void
+    {
+        CLI::reset();
+
+        parent::tearDown();
     }
 
     public function testNew(): void
@@ -286,10 +295,6 @@ final class CLITest extends CIUnitTestCase
 
     public function testColor(): void
     {
-        // After the tests on NO_COLOR and TERM_PROGRAM above,
-        // the $isColored variable is rigged. So we reset this.
-        CLI::init();
-
         $this->assertSame(
             "\033[1;37m\033[42m\033[4mtest\033[0m",
             CLI::color('test', 'white', 'green', 'underline'),
@@ -330,6 +335,8 @@ final class CLITest extends CIUnitTestCase
 
     public function testWrite(): void
     {
+        CLI::resetLastWrite();
+
         CLI::write('test');
 
         $expected = PHP_EOL . 'test' . PHP_EOL;
@@ -340,7 +347,7 @@ final class CLITest extends CIUnitTestCase
     {
         CLI::write('test', 'red');
 
-        $expected = "\033[0;31mtest\033[0m" . PHP_EOL;
+        $expected = PHP_EOL . "\033[0;31mtest\033[0m" . PHP_EOL;
         $this->assertSame($expected, $this->getStreamFilterBuffer());
     }
 
@@ -348,7 +355,7 @@ final class CLITest extends CIUnitTestCase
     {
         CLI::write(CLI::color('green', 'green') . ' red', 'red');
 
-        $expected = "\033[0;32mgreen\033[0m\033[0;31m red\033[0m" . PHP_EOL;
+        $expected = PHP_EOL . "\033[0;32mgreen\033[0m\033[0;31m red\033[0m" . PHP_EOL;
         $this->assertSame($expected, $this->getStreamFilterBuffer());
     }
 
@@ -356,7 +363,7 @@ final class CLITest extends CIUnitTestCase
     {
         CLI::write('red ' . CLI::color('green', 'green'), 'red');
 
-        $expected = "\033[0;31mred \033[0m\033[0;32mgreen\033[0m" . PHP_EOL;
+        $expected = PHP_EOL . "\033[0;31mred \033[0m\033[0;32mgreen\033[0m" . PHP_EOL;
         $this->assertSame($expected, $this->getStreamFilterBuffer());
     }
 
@@ -370,7 +377,7 @@ final class CLITest extends CIUnitTestCase
             'red',
         );
 
-        $expected = "\033[0;32mgreen\033[0m\033[0;31m red \033[0m\033[0;32mgreen\033[0m" . PHP_EOL;
+        $expected = PHP_EOL . "\033[0;32mgreen\033[0m\033[0;31m red \033[0m\033[0;32mgreen\033[0m" . PHP_EOL;
         $this->assertSame($expected, $this->getStreamFilterBuffer());
     }
 
@@ -378,7 +385,7 @@ final class CLITest extends CIUnitTestCase
     {
         CLI::write('test', 'red', 'green');
 
-        $expected = "\033[0;31m\033[42mtest\033[0m" . PHP_EOL;
+        $expected = PHP_EOL . "\033[0;31m\033[42mtest\033[0m" . PHP_EOL;
         $this->assertSame($expected, $this->getStreamFilterBuffer());
     }
 
@@ -420,7 +427,7 @@ final class CLITest extends CIUnitTestCase
         CLI::write('third.');
         CLI::showProgress(1, 20);
 
-        $expected = 'first.' . PHP_EOL .
+        $expected = PHP_EOL . 'first.' . PHP_EOL .
                     "[\033[32m#.........\033[0m]   5% Complete" . PHP_EOL .
                     "\033[1A[\033[32m#####.....\033[0m]  50% Complete" . PHP_EOL .
                     "\033[1A[\033[32m##########\033[0m] 100% Complete" . PHP_EOL .
@@ -440,7 +447,7 @@ final class CLITest extends CIUnitTestCase
         CLI::showProgress(false, 20);
         CLI::showProgress(false, 20);
 
-        $expected = 'first.' . PHP_EOL . "\007\007\007";
+        $expected = PHP_EOL . 'first.' . PHP_EOL . "\007\007\007";
         $this->assertSame($expected, $this->getStreamFilterBuffer());
     }
 
@@ -613,6 +620,7 @@ final class CLITest extends CIUnitTestCase
             [
                 $oneRow,
                 [],
+                PHP_EOL .
                 '+---+-----+' . PHP_EOL .
                 '| 1 | bar |' . PHP_EOL .
                 '+---+-----+' . PHP_EOL . PHP_EOL,
@@ -620,6 +628,7 @@ final class CLITest extends CIUnitTestCase
             [
                 $oneRow,
                 $head,
+                PHP_EOL .
                 '+----+-------+' . PHP_EOL .
                 '| ID | Title |' . PHP_EOL .
                 '+----+-------+' . PHP_EOL .
@@ -629,6 +638,7 @@ final class CLITest extends CIUnitTestCase
             [
                 $manyRows,
                 [],
+                PHP_EOL .
                 '+---+-----------------+' . PHP_EOL .
                 '| 1 | bar             |' . PHP_EOL .
                 '| 2 | bar * 2         |' . PHP_EOL .
@@ -638,6 +648,7 @@ final class CLITest extends CIUnitTestCase
             [
                 $manyRows,
                 $head,
+                PHP_EOL .
                 '+----+-----------------+' . PHP_EOL .
                 '| ID | Title           |' . PHP_EOL .
                 '+----+-----------------+' . PHP_EOL .
@@ -658,6 +669,7 @@ final class CLITest extends CIUnitTestCase
                     'ID',
                     'タイトル',
                 ],
+                PHP_EOL .
                 '+------+----------+' . PHP_EOL .
                 '| ID   | タイトル |' . PHP_EOL .
                 '+------+----------+' . PHP_EOL .

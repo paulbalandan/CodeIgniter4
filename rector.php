@@ -31,6 +31,7 @@ use Rector\EarlyReturn\Rector\If_\ChangeIfElseValueAssignToEarlyReturnRector;
 use Rector\EarlyReturn\Rector\If_\RemoveAlwaysElseRector;
 use Rector\EarlyReturn\Rector\Return_\PreparedValueToEarlyReturnRector;
 use Rector\Php70\Rector\FuncCall\RandomFunctionRector;
+use Rector\Php70\Rector\StaticCall\StaticCallOnNonStaticToInstanceCallRector;
 use Rector\Php71\Rector\FuncCall\RemoveExtraParametersRector;
 use Rector\Php80\Rector\Class_\ClassPropertyAssignToConstructorPromotionRector;
 use Rector\Php81\Rector\FuncCall\NullToStrictStringFuncCallArgRector;
@@ -173,7 +174,7 @@ return RectorConfig::configure()
 
         CompactToVariablesRector::class,
 
-        // possibly isset() on purpose, on updated Config classes property accross versions
+        // possibly isset() on purpose, on updated Config classes property across versions
         IssetOnPropertyObjectToPropertyExistsRector::class,
 
         AssertFuncCallToPHPUnitAssertRector::class => [
@@ -193,6 +194,10 @@ return RectorConfig::configure()
             __DIR__ . '/system/Model.php',
             __DIR__ . '/tests/system/Database',
             __DIR__ . '/tests/system/Models',
+        ],
+
+        StaticCallOnNonStaticToInstanceCallRector::class => [
+            __DIR__ . '/tests/_support/Config/Services.php',
         ],
     ])
     // auto import fully qualified class names

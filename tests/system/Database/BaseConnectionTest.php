@@ -19,6 +19,7 @@ use CodeIgniter\Test\Mock\MockConnection;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use Throwable;
+use TypeError;
 
 /**
  * @internal
@@ -93,6 +94,130 @@ final class BaseConnectionTest extends CIUnitTestCase
             'datetime-us' => 'Y-m-d H:i:s.u',
             'time'        => 'H:i:s',
         ], $db->dateFormat);
+    }
+
+    public function testCastsStringConfigValuesToTypedProperties(): void
+    {
+        $db = new class ([...$this->options, 'synchronous' => '1', 'busyTimeout' => '4000', 'typedBool' => '0', 'nullInt' => 'null']) extends MockConnection {
+            protected ?int $synchronous = null;
+            protected ?int $busyTimeout = null;
+            protected bool $typedBool   = true;
+            protected ?int $nullInt     = 1;
+
+            public function getSynchronous(): ?int
+            {
+                return $this->synchronous;
+            }
+
+            public function getBusyTimeout(): ?int
+            {
+                return $this->busyTimeout;
+            }
+
+            public function isTypedBool(): bool
+            {
+                return $this->typedBool;
+            }
+
+            public function getNullInt(): ?int
+            {
+                return $this->nullInt;
+            }
+        };
+
+        $this->assertSame(1, $db->getSynchronous());
+        $this->assertSame(4000, $db->getBusyTimeout());
+        $this->assertFalse($db->isTypedBool());
+        $this->assertNull($db->getNullInt());
+    }
+
+    public function testCastsExtendedBoolStringsToBool(): void
+    {
+        $db = new class ([...$this->options, 'enabledYes' => 'yes', 'enabledOn' => 'on', 'disabledNo' => 'no', 'disabledOff' => 'off']) extends MockConnection {
+            protected bool $enabledYes  = false;
+            protected bool $enabledOn   = false;
+            protected bool $disabledNo  = true;
+            protected bool $disabledOff = true;
+
+            public function isEnabledYes(): bool
+            {
+                return $this->enabledYes;
+            }
+
+            public function isEnabledOn(): bool
+            {
+                return $this->enabledOn;
+            }
+
+            public function isDisabledNo(): bool
+            {
+                return $this->disabledNo;
+            }
+
+            public function isDisabledOff(): bool
+            {
+                return $this->disabledOff;
+            }
+        };
+
+        $this->assertTrue($db->isEnabledYes());
+        $this->assertTrue($db->isEnabledOn());
+        $this->assertFalse($db->isDisabledNo());
+        $this->assertFalse($db->isDisabledOff());
+    }
+
+    public function testCastsFalseAndTrueStandaloneUnionTypes(): void
+    {
+        $db = new class ([...$this->options, 'withFalse' => 'false', 'withTrue' => 'true']) extends MockConnection {
+            protected false|int $withFalse = 0;
+            protected int|true $withTrue   = 0;
+
+            public function getWithFalse(): false|int
+            {
+                return $this->withFalse;
+            }
+
+            public function getWithTrue(): int|true
+            {
+                return $this->withTrue;
+            }
+        };
+
+        $this->assertFalse($db->getWithFalse());
+        $this->assertTrue($db->getWithTrue());
+    }
+
+    public function testCachesTypedPropertiesIncrementally(): void
+    {
+        $factory = static fn (array $options): MockConnection => new class ($options) extends MockConnection {
+            protected ?int $synchronous = null;
+            protected ?int $busyTimeout = null;
+
+            public function getSynchronous(): ?int
+            {
+                return $this->synchronous;
+            }
+
+            public function getBusyTimeout(): ?int
+            {
+                return $this->busyTimeout;
+            }
+        };
+
+        $first  = $factory([...$this->options, 'synchronous' => '1']);
+        $second = $factory([...$this->options, 'busyTimeout' => '4000']);
+
+        $this->assertSame(1, $first->getSynchronous());
+        $this->assertSame(4000, $second->getBusyTimeout());
+    }
+
+    public function testInvalidStringValueForTypedPropertyThrowsTypeError(): void
+    {
+        $this->expectException(TypeError::class);
+
+        new class ([...$this->options, 'synchronous' => 'not-an-int']) extends MockConnection {
+            protected ?int $synchronous = null;
+        };
     }
 
     public function testConnectionThrowExceptionWhenCannotConnect(): void
@@ -344,5 +469,29 @@ final class BaseConnectionTest extends CIUnitTestCase
             'simple'    => ['test', '"test"'],
             'with dots' => ['com.sitedb.web', '"com.sitedb.web"'],
         ];
+    }
+
+    public function testCallFunctionDoesNotDoublePrefixAlreadyPrefixedName(): void
+    {
+        $db = new class ($this->options) extends MockConnection {
+            protected function getDriverFunctionPrefix(): string
+            {
+                return 'str_';
+            }
+        };
+
+        $this->assertTrue($db->callFunction('str_contains', 'CodeIgniter', 'Ignite'));
+    }
+
+    public function testCallFunctionPrefixesUnprefixedName(): void
+    {
+        $db = new class ($this->options) extends MockConnection {
+            protected function getDriverFunctionPrefix(): string
+            {
+                return 'str_';
+            }
+        };
+
+        $this->assertTrue($db->callFunction('contains', 'CodeIgniter', 'Ignite'));
     }
 }

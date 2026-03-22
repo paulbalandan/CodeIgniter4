@@ -22,6 +22,7 @@ use stdClass;
 use Tests\Support\Models\EntityModel;
 use Tests\Support\Models\JobModel;
 use Tests\Support\Models\SecondaryModel;
+use Tests\Support\Models\SimpleEntity;
 use Tests\Support\Models\UserModel;
 use Tests\Support\Models\ValidModel;
 use Tests\Support\Models\WithoutAutoIncrementModel;
@@ -173,6 +174,7 @@ final class SaveModelTest extends LiveModelTestCase
         $this->assertSame('Rocket Scientist', $job->name);
 
         $job->description = 'Some guitar description';
+        $this->assertInstanceOf(SimpleEntity::class, $job);
         $this->model->save($job);
         $this->seeInDatabase('job', [
             'id'   => $job->id,
@@ -237,21 +239,19 @@ final class SaveModelTest extends LiveModelTestCase
     public function testSaveNewEntityWithDateTime(): void
     {
         $entity = new class () extends Entity {
-            protected $id;
-            protected $name;
-            protected $email;
-            protected $country;
-            protected $deleted;
-            protected $created_at;
-            protected $updated_at;
-            protected $_options = [
-                'datamap' => [],
-                'dates'   => [
-                    'created_at',
-                    'updated_at',
-                    'deleted_at',
-                ],
-                'casts' => [],
+            protected $attributes = [
+                'id'         => null,
+                'name'       => null,
+                'email'      => null,
+                'country'    => null,
+                'deleted_at' => null,
+                'created_at' => null,
+                'updated_at' => null,
+            ];
+            protected $dates = [
+                'created_at',
+                'updated_at',
+                'deleted_at',
             ];
         };
 
@@ -260,7 +260,7 @@ final class SaveModelTest extends LiveModelTestCase
         $entity->name       = 'Mark';
         $entity->email      = 'mark@example.com';
         $entity->country    = 'India';
-        $entity->deleted    = 0;
+        $entity->deleted_at = null;
         $entity->created_at = new Time('now');
 
         $this->setPrivateProperty($this->model, 'useTimestamps', true);
@@ -270,18 +270,16 @@ final class SaveModelTest extends LiveModelTestCase
     public function testSaveNewEntityWithDate(): void
     {
         $entity = new class () extends Entity {
-            protected $id;
-            protected $name;
-            protected $created_at;
-            protected $updated_at;
-            protected $_options = [
-                'datamap' => [],
-                'dates'   => [
-                    'created_at',
-                    'updated_at',
-                    'deleted_at',
-                ],
-                'casts' => [],
+            protected $attributes = [
+                'id'         => null,
+                'name'       => null,
+                'created_at' => null,
+                'updated_at' => null,
+            ];
+            protected $dates = [
+                'created_at',
+                'updated_at',
+                'deleted_at',
             ];
         };
 
@@ -293,7 +291,6 @@ final class SaveModelTest extends LiveModelTestCase
             protected $returnType     = 'object';
             protected $useSoftDeletes = true;
             protected $dateFormat     = 'date';
-            public $name              = '';
         };
 
         $entity->name       = 'Mark';
@@ -372,7 +369,6 @@ final class SaveModelTest extends LiveModelTestCase
     public function testSaveNewEntityWithMappedPrimaryKey(): void
     {
         $entity = new class () extends Entity {
-            protected string $name;
             protected $attributes = [
                 'id'   => null,
                 'name' => null,

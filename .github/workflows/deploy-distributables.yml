@@ -12,25 +12,27 @@ permissions:
 jobs:
   check-version:
     name: Check for updated version
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0 # fetch all tags
+          persist-credentials: false
 
       - name: Get latest version
+        id: version
         run: |
-          echo 'LATEST_VERSION<<EOF' >> $GITHUB_ENV
-          echo $(git describe --tags --abbrev=0) | sed "s/v//" >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
+          echo 'LATEST_VERSION<<EOF' >> $GITHUB_OUTPUT
+          echo $(git describe --tags --abbrev=0) | sed "s/v//" >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
 
       - name: Search for updated version
-        if: ${{ env.LATEST_VERSION }}
+        if: ${{ steps.version.outputs.LATEST_VERSION }}
         run: |
           chmod +x ${GITHUB_WORKSPACE}/.github/scripts/validate-version
-          ${GITHUB_WORKSPACE}/.github/scripts/validate-version ${{ env.LATEST_VERSION }}
+          ${GITHUB_WORKSPACE}/.github/scripts/validate-version ${{ steps.version.outputs.LATEST_VERSION }}
 
   framework:
     name: Deploy to framework
@@ -38,7 +40,7 @@ jobs:
       # Allow actions/github-script to create release
       contents: write
     if: github.repository == 'codeigniter4/CodeIgniter4'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: check-version
 
     steps:
@@ -48,25 +50,29 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
 
       - name: Checkout source
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: source
+          persist-credentials: false
 
       - name: Checkout target
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: codeigniter4/framework
           token: ${{ secrets.ACCESS_TOKEN }}
           path: framework
+          persist-credentials: false
 
       - name: Chmod
         run: chmod +x ./source/.github/scripts/deploy-framework
 
       - name: Deploy
+        env:
+          PUSH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: ./source/.github/scripts/deploy-framework ${GITHUB_WORKSPACE}/source ${GITHUB_WORKSPACE}/framework ${GITHUB_REF##*/}
 
       - name: Release
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{secrets.ACCESS_TOKEN}}
           script: |
@@ -88,7 +94,7 @@ jobs:
       # Allow actions/github-script to create release
       contents: write
     if: github.repository == 'codeigniter4/CodeIgniter4'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: check-version
 
     steps:
@@ -98,25 +104,29 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
 
       - name: Checkout source
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: source
+          persist-credentials: false
 
       - name: Checkout target
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: codeigniter4/appstarter
           token: ${{ secrets.ACCESS_TOKEN }}
           path: appstarter
+          persist-credentials: false
 
       - name: Chmod
         run: chmod +x ./source/.github/scripts/deploy-appstarter
 
       - name: Deploy
+        env:
+          PUSH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: ./source/.github/scripts/deploy-appstarter ${GITHUB_WORKSPACE}/source ${GITHUB_WORKSPACE}/appstarter ${GITHUB_REF##*/}
 
       - name: Release
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{secrets.ACCESS_TOKEN}}
           script: |
@@ -138,7 +148,7 @@ jobs:
       # Allow actions/github-script to create release
       contents: write
     if: github.repository == 'codeigniter4/CodeIgniter4'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: check-version
 
     steps:
@@ -148,19 +158,21 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
 
       - name: Checkout source
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: source
+          persist-credentials: false
 
       - name: Checkout target
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: codeigniter4/userguide
           token: ${{ secrets.ACCESS_TOKEN }}
           path: userguide
+          persist-credentials: false
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
 
@@ -173,10 +185,12 @@ jobs:
         run: chmod +x ./source/.github/scripts/deploy-userguide
 
       - name: Deploy
+        env:
+          PUSH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: ./source/.github/scripts/deploy-userguide ${GITHUB_WORKSPACE}/source ${GITHUB_WORKSPACE}/userguide ${GITHUB_REF##*/}
 
       - name: Release
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{secrets.ACCESS_TOKEN}}
           script: |

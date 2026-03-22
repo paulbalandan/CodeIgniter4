@@ -8,8 +8,9 @@ on:
     branches:
       - 'develop'
     paths:
-      - 'system/**'
+      - '.github/scripts/secure-git-push'
       - '.github/workflows/deploy-apidocs.yml'
+      - 'system/**'
 
 permissions:
   contents: read
@@ -20,7 +21,7 @@ jobs:
     permissions:
       contents: write
     if: github.repository == 'codeigniter4/CodeIgniter4'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Setup credentials
@@ -29,19 +30,21 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
 
       - name: Checkout source
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: source
+          persist-credentials: false
 
       - name: Checkout target
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: codeigniter4/api
           token: ${{ secrets.ACCESS_TOKEN }}
           path: api
+          persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # 2.37.0
         with:
           php-version: '8.2'
           tools: phive
@@ -66,9 +69,15 @@ jobs:
 
       - name: Deploy to API repo
         working-directory: api
+        env:
+          PUSH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         run: |
           git add .
+
           if ! git diff-index --quiet HEAD; then
             git commit -m "Updated API for commit ${GITHUB_SHA}"
-            git push origin master
+            bash "${GITHUB_WORKSPACE}/source/.github/scripts/secure-git-push" https://github.com/codeigniter4/api.git HEAD:master
+            echo "API documentation deployed successfully."
+          else
+            echo "No changes to deploy."
           fi

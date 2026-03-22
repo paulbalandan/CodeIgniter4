@@ -26,7 +26,7 @@ copyright = '2019-' + str(year_now) + ' CodeIgniter Foundation'
 version = '4.7'
 
 # The full version, including alpha/beta/rc tags.
-release = '4.7.0'
+release = '4.7.1'
 
 # -- General configuration ---------------------------------------------------
 
@@ -79,7 +79,6 @@ html_theme_options = {
 	'navigation_depth': 2,
 	'includehidden': False,
 	'logo_only': True,
-	'display_version': False,
 }
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
