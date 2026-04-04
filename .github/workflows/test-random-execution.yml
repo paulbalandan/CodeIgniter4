@@ -25,7 +25,7 @@ on:
       - 'system/**.php'
       - 'tests/**.php'
 
-  workflow_call:
+  workflow_dispatch:
     inputs:
       quiet:
         description: Suppress debug output
@@ -120,7 +120,7 @@ jobs:
           --health-retries=3
 
       oracle:
-        image: gvenzl/oracle-xe:21
+        image: gvenzl/oracle-free:latest
         env:
           ORACLE_RANDOM_PASSWORD: true
           APP_USER: ORACLE
@@ -223,3 +223,12 @@ jobs:
         env:
           DB: ${{ matrix.db-platform }}
           TERM: xterm-256color
+
+      - name: Upload random-test artifacts on failure
+        if: ${{ always() && failure() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: random-tests-${{ matrix.db-platform }}-php${{ matrix.php-version }}
+          path: build/random-tests/
+          retention-days: 1
+          overwrite: true
