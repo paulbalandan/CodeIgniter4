@@ -299,6 +299,16 @@ class ContentSecurityPolicy
     protected $scriptNonce;
 
     /**
+     * Whether to enable nonce to style-src and style-src-elem directives or not.
+     */
+    protected bool $enableStyleNonce = true;
+
+    /**
+     * Whether to enable nonce to script-src and script-src-elem directives or not.
+     */
+    protected bool $enableScriptNonce = true;
+
+    /**
      * Nonce placeholder for style tags.
      *
      * @var string
@@ -393,10 +403,32 @@ class ContentSecurityPolicy
     }
 
     /**
+     * Whether adding nonce in style-* directives is enabled or not.
+     */
+    public function styleNonceEnabled(): bool
+    {
+        return $this->enabled() && $this->enableStyleNonce;
+    }
+
+    /**
+     * Whether adding nonce in script-* directives is enabled or not.
+     */
+    public function scriptNonceEnabled(): bool
+    {
+        return $this->enabled() && $this->enableScriptNonce;
+    }
+
+    /**
      * Get the nonce for the style tag.
      */
     public function getStyleNonce(): string
     {
+        if (! $this->enableStyleNonce) {
+            $this->styleNonce = null;
+
+            return '';
+        }
+
         if ($this->styleNonce === null) {
             $this->styleNonce = base64_encode(random_bytes(12));
             $this->addStyleSrc('nonce-' . $this->styleNonce);
@@ -414,6 +446,12 @@ class ContentSecurityPolicy
      */
     public function getScriptNonce(): string
     {
+        if (! $this->enableScriptNonce) {
+            $this->scriptNonce = null;
+
+            return '';
+        }
+
         if ($this->scriptNonce === null) {
             $this->scriptNonce = base64_encode(random_bytes(12));
             $this->addScriptSrc('nonce-' . $this->scriptNonce);
@@ -869,6 +907,30 @@ class ContentSecurityPolicy
     }
 
     /**
+     * Enables or disables adding nonces to style-src and style-src-elem directives.
+     *
+     * @return $this
+     */
+    public function setEnableStyleNonce(bool $value = true): static
+    {
+        $this->enableStyleNonce = $value;
+
+        return $this;
+    }
+
+    /**
+     * Enables or disables adding nonces to script-src and script-src-elem directives.
+     *
+     * @return $this
+     */
+    public function setEnableScriptNonce(bool $value = true): static
+    {
+        $this->enableScriptNonce = $value;
+
+        return $this;
+    }
+
+    /**
      * DRY method to add an string or array to a class property.
      *
      * @param list<string>|string $options
@@ -919,8 +981,21 @@ class ContentSecurityPolicy
                 return '';
             }
 
-            $nonce = $match[0] === $this->styleNonceTag ? $this->getStyleNonce() : $this->getScriptNonce();
-            $attr  = 'nonce="' . $nonce . '"';
+            if ($match[0] === $this->styleNonceTag) {
+                if (! $this->enableStyleNonce) {
+                    return '';
+                }
+
+                $nonce = $this->getStyleNonce();
+            } else {
+                if (! $this->enableScriptNonce) {
+                    return '';
+                }
+
+                $nonce = $this->getScriptNonce();
+            }
+
+            $attr = 'nonce="' . $nonce . '"';
 
             return $jsonEscape ? str_replace('"', '\\"', $attr) : $attr;
         }, $body);
