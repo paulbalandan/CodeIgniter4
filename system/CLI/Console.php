@@ -30,7 +30,7 @@ class Console
     private string $command = '';
 
     /**
-     * @var array<string, string|null>
+     * @var array<string, list<string|null>|string|null>
      */
     private array $options = [];
 
