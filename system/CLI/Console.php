@@ -22,7 +22,12 @@ use Config\Services;
  */
 class Console
 {
-    private const DEFAULT_COMMAND = 'list';
+    /**
+     * @internal
+     */
+    public const DEFAULT_COMMAND = 'list';
+
+    private string $command = '';
 
     /**
      * @var array<string, string|null>
@@ -60,9 +65,9 @@ class Console
             }
         }
 
-        $command = array_shift($arguments) ?? self::DEFAULT_COMMAND;
+        $this->command = array_shift($arguments) ?? self::DEFAULT_COMMAND;
 
-        return service('commands')->run($command, array_merge($arguments, $this->options));
+        return service('commands')->run($this->command, array_merge($arguments, $this->options));
     }
 
     public function initialize(): static
@@ -71,6 +76,14 @@ class Console
         service('routes')->loadRoutes();
 
         return $this;
+    }
+
+    /**
+     * Returns the command that is being executed.
+     */
+    public function getCommand(): string
+    {
+        return $this->command;
     }
 
     /**
