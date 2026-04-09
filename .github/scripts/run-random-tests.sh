@@ -486,6 +486,7 @@ run_component_tests() {
         "$test_dir"
         "--colors=never"
         "--no-coverage"
+        "--do-not-cache-result"
         "--order-by=random"
         "--random-order-seed=${random_seed}"
         "--log-events-text"
@@ -611,7 +612,7 @@ run_component_tests() {
         fi
 
         {
-            echo "> ${phpunit_args[@]:0:6}"
+            echo "> ${phpunit_args[@]:0:7}"
             echo ""
             echo "$output"
             echo "$predecessor_info"
