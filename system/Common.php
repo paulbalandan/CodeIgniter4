@@ -169,10 +169,14 @@ if (! function_exists('command')) {
         // Prepend an application name, as Console expects one.
         array_unshift($tokens, 'spark');
 
-        ob_start();
-        (new Console())->run($tokens);
+        try {
+            ob_start();
+            (new Console())->run($tokens);
 
-        return ob_get_clean();
+            return ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
     }
 }
 

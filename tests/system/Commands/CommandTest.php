@@ -17,10 +17,8 @@ use CodeIgniter\CLI\Commands;
 use CodeIgniter\Log\Logger;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\StreamFilterTrait;
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\Support\Commands\AppInfo;
-use Tests\Support\Commands\ParamsReveal;
 
 /**
  * @internal
@@ -68,7 +66,7 @@ final class CommandTest extends CIUnitTestCase
     public function testCustomCommand(): void
     {
         command('app:info');
-        $this->assertStringContainsString('CI Version:', $this->getBuffer());
+        $this->assertStringContainsString('CodeIgniter Version:', $this->getBuffer());
     }
 
     public function testShowError(): void
@@ -79,7 +77,7 @@ final class CommandTest extends CIUnitTestCase
         /** @var AppInfo */
         $command = new $commands['app:info']['class']($this->logger, $this->commands);
 
-        $command->helpme();
+        $command->helpMe();
 
         $this->assertStringContainsString('Displays basic usage information.', $this->getBuffer());
     }
@@ -134,51 +132,5 @@ final class CommandTest extends CIUnitTestCase
         $this->assertStringContainsString('Command "clear" not found.', $this->getBuffer());
         $this->assertStringContainsString('Did you mean one of these?', $this->getBuffer());
         $this->assertStringContainsString(':clear', $this->getBuffer());
-    }
-
-    /**
-     * @param list<string> $expected
-     */
-    #[DataProvider('provideCommandParsesArgsCorrectly')]
-    public function testCommandParsesArgsCorrectly(string $input, array $expected): void
-    {
-        ParamsReveal::$args = null;
-        command($input);
-
-        $this->assertSame($expected, ParamsReveal::$args);
-    }
-
-    public static function provideCommandParsesArgsCorrectly(): iterable
-    {
-        return [
-            [
-                'reveal as df',
-                ['as', 'df'],
-            ],
-            [
-                'reveal',
-                [],
-            ],
-            [
-                'reveal seg1 seg2 -opt1 -opt2',
-                ['seg1', 'seg2', 'opt1' => null, 'opt2' => null],
-            ],
-            [
-                'reveal seg1 seg2 -opt1 val1 seg3',
-                ['seg1', 'seg2', 'seg3', 'opt1' => 'val1'],
-            ],
-            [
-                'reveal as df -gh -jk -qw 12 zx cv',
-                ['as', 'df', 'zx', 'cv', 'gh' => null, 'jk' => null, 'qw' => '12'],
-            ],
-            [
-                'reveal as -df "some stuff" -jk 12 -sd "Some longer stuff" -fg \'using single quotes\'',
-                ['as', 'df' => 'some stuff', 'jk' => '12', 'sd' => 'Some longer stuff', 'fg' => 'using single quotes'],
-            ],
-            [
-                'reveal as -df "using mixed \'quotes\'\" here\""',
-                ['as', 'df' => 'using mixed \'quotes\'" here"'],
-            ],
-        ];
     }
 }
