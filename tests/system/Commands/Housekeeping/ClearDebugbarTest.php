@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace CodeIgniter\Commands\Housekeeping;
 
+use CodeIgniter\CLI\CLI;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\StreamFilterTrait;
 use PHPUnit\Framework\Attributes\Group;
@@ -35,6 +36,8 @@ final class ClearDebugbarTest extends CIUnitTestCase
         command('debugbar:clear');
         $this->resetStreamFilterBuffer();
 
+        CLI::reset();
+
         $this->time = time();
         $this->createDummyDebugbarJson();
     }
@@ -43,6 +46,8 @@ final class ClearDebugbarTest extends CIUnitTestCase
     {
         command('debugbar:clear');
         $this->resetStreamFilterBuffer();
+
+        CLI::reset();
 
         parent::tearDown();
     }
@@ -70,7 +75,7 @@ final class ClearDebugbarTest extends CIUnitTestCase
         $this->assertFileDoesNotExist(WRITEPATH . 'debugbar' . DIRECTORY_SEPARATOR . "debugbar_{$this->time}.json");
         $this->assertFileExists(WRITEPATH . 'debugbar' . DIRECTORY_SEPARATOR . 'index.html');
         $this->assertSame(
-            "Debugbar cleared.\n",
+            "\nDebugbar cleared.\n",
             preg_replace('/\e\[[^m]+m/', '', $this->getStreamFilterBuffer()),
         );
     }
@@ -80,38 +85,17 @@ final class ClearDebugbarTest extends CIUnitTestCase
     {
         $path = WRITEPATH . 'debugbar' . DIRECTORY_SEPARATOR . "debugbar_{$this->time}.json";
 
-        // Attempt to make the file itself undeletable by setting the
-        // immutable/uchg flag on supported platforms.
-        $immutableSet = false;
-        if (str_starts_with(PHP_OS, 'Darwin')) {
-            @exec(sprintf('chflags uchg %s', escapeshellarg($path)), $output, $rc);
-            $immutableSet = $rc === 0;
-        } else {
-            // Try chattr on Linux with sudo (for containerized environments)
-            @exec('which chattr', $whichOut, $whichRc);
-
-            if ($whichRc === 0) {
-                @exec(sprintf('sudo chattr +i %s', escapeshellarg($path)), $output, $rc);
-                $immutableSet = $rc === 0;
-            }
-        }
-
-        if (! $immutableSet) {
-            $this->markTestSkipped('Cannot set file immutability in this environment');
-        }
+        // Attempt to make the file itself undeletable
+        chmod(dirname($path), 0555);
 
         command('debugbar:clear');
 
         // Restore attributes so other tests are not affected.
-        if (str_starts_with(PHP_OS, 'Darwin')) {
-            @exec(sprintf('chflags nouchg %s', escapeshellarg($path)));
-        } else {
-            @exec(sprintf('sudo chattr -i %s', escapeshellarg($path)));
-        }
+        chmod(dirname($path), 0755);
 
         $this->assertFileExists($path);
         $this->assertSame(
-            "Error deleting the debugbar JSON files.\n",
+            "\nError deleting the debugbar JSON files.\n",
             preg_replace('/\e\[[^m]+m/', '', $this->getStreamFilterBuffer()),
         );
     }

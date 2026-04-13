@@ -41,6 +41,8 @@ final class ClearLogsTest extends CIUnitTestCase
         command('logs:clear --force');
         $this->resetStreamFilterBuffer();
 
+        CLI::reset();
+
         $this->createDummyLogFiles();
     }
 
@@ -78,7 +80,7 @@ final class ClearLogsTest extends CIUnitTestCase
 
         $this->assertFileDoesNotExist(WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . "log-{$this->date}.log");
         $this->assertFileExists(WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . 'index.html');
-        $this->assertSame("Logs cleared.\n", preg_replace('/\e\[[^m]+m/', '', $this->getStreamFilterBuffer()));
+        $this->assertSame("\nLogs cleared.\n", preg_replace('/\e\[[^m]+m/', '', $this->getStreamFilterBuffer()));
     }
 
     public function testClearLogsAbortsClearWithoutForce(): void
@@ -94,11 +96,12 @@ final class ClearLogsTest extends CIUnitTestCase
         $this->assertFileExists(WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . "log-{$this->date}.log");
         $this->assertSame(
             <<<'EOT'
+                Are you sure you want to delete the logs? [n, y]: n
                 Deleting logs aborted.
                 If you want, use the "--force" option to force delete all log files.
 
                 EOT,
-            preg_replace('/\e\[[^m]+m/', '', $io->getOutput(2) . $io->getOutput(3)),
+            preg_replace('/\e\[[^m]+m/', '', $io->getOutput()),
         );
     }
 
@@ -110,16 +113,19 @@ final class ClearLogsTest extends CIUnitTestCase
         $io->setInputs(['']);
         CLI::setInputOutput($io);
 
+        $space = ' ';
+
         command('logs:clear');
 
         $this->assertFileExists(WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . "log-{$this->date}.log");
         $this->assertSame(
-            <<<'EOT'
+            <<<EOT
+                Are you sure you want to delete the logs? [n, y]:{$space}
                 Deleting logs aborted.
                 If you want, use the "--force" option to force delete all log files.
 
                 EOT,
-            preg_replace('/\e\[[^m]+m/', '', $io->getOutput(2) . $io->getOutput(3)),
+            preg_replace('/\e\[[^m]+m/', '', $io->getOutput()),
         );
     }
 
@@ -134,7 +140,14 @@ final class ClearLogsTest extends CIUnitTestCase
         command('logs:clear');
 
         $this->assertFileDoesNotExist(WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . "log-{$this->date}.log");
-        $this->assertSame("Logs cleared.\n", preg_replace('/\e\[[^m]+m/', '', $io->getOutput(2)));
+        $this->assertSame(
+            <<<'EOT'
+                Are you sure you want to delete the logs? [n, y]: y
+                Logs cleared.
+
+                EOT,
+            preg_replace('/\e\[[^m]+m/', '', $io->getOutput()),
+        );
     }
 
     #[RequiresOperatingSystem('Darwin|Linux')]
@@ -143,36 +156,18 @@ final class ClearLogsTest extends CIUnitTestCase
         $path = WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . "log-{$this->date}.log";
         file_put_contents($path, 'Lorem ipsum');
 
-        // Attempt to make the file itself undeletable by setting the
-        // immutable/uchg flag on supported platforms.
-        $immutableSet = false;
-        if (str_starts_with(PHP_OS, 'Darwin')) {
-            @exec(sprintf('chflags uchg %s', escapeshellarg($path)), $output, $rc);
-            $immutableSet = $rc === 0;
-        } else {
-            // Try chattr on Linux with sudo (for containerized environments)
-            @exec('which chattr', $whichOut, $whichRc);
-
-            if ($whichRc === 0) {
-                @exec(sprintf('sudo chattr +i %s', escapeshellarg($path)), $output, $rc);
-                $immutableSet = $rc === 0;
-            }
-        }
-
-        if (! $immutableSet) {
-            $this->markTestSkipped('Cannot set file immutability in this environment');
-        }
+        // Attempt to make the file itself undeletable
+        chmod(dirname($path), 0555);
 
         command('logs:clear --force');
 
         // Restore attributes so other tests are not affected.
-        if (str_starts_with(PHP_OS, 'Darwin')) {
-            @exec(sprintf('chflags nouchg %s', escapeshellarg($path)));
-        } else {
-            @exec(sprintf('sudo chattr -i %s', escapeshellarg($path)));
-        }
+        chmod(dirname($path), 0755);
 
         $this->assertFileExists($path);
-        $this->assertSame("Error in deleting the logs files.\n", preg_replace('/\e\[[^m]+m/', '', $this->getStreamFilterBuffer()));
+        $this->assertSame(
+            "\nError in deleting the logs files.\n",
+            preg_replace('/\e\[[^m]+m/', '', $this->getStreamFilterBuffer()),
+        );
     }
 }
