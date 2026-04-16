@@ -419,6 +419,72 @@ final class EntityTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(3.6, $entity->second, PHP_FLOAT_EPSILON);
     }
 
+    public function testCastFloatWithPrecision(): void
+    {
+        $entity = $this->getCastEntity();
+
+        $entity->fourteenth = 3.1415926535;
+
+        $this->assertIsFloat($entity->fourteenth);
+        $this->assertEqualsWithDelta(3.14, $entity->fourteenth, PHP_FLOAT_EPSILON);
+
+        $entity->fourteenth = '3.1415926535';
+
+        $this->assertIsFloat($entity->fourteenth);
+        $this->assertEqualsWithDelta(3.14, $entity->fourteenth, PHP_FLOAT_EPSILON);
+    }
+
+    public function testCastFloatWithPrecisionAndRoundingMode(): void
+    {
+        $entity = $this->getCastEntity();
+
+        $entity->fifteenth = 3.145;
+
+        $this->assertIsFloat($entity->fifteenth);
+        $this->assertEqualsWithDelta(3.14, $entity->fifteenth, PHP_FLOAT_EPSILON);
+
+        $entity->fifteenth = '3.135';
+
+        $this->assertIsFloat($entity->fifteenth);
+        $this->assertEqualsWithDelta(3.13, $entity->fifteenth, PHP_FLOAT_EPSILON);
+
+        $entity->sixteenth = 20.0005;
+
+        $this->assertIsFloat($entity->sixteenth);
+        $this->assertEqualsWithDelta(20.000, $entity->sixteenth, PHP_FLOAT_EPSILON);
+
+        $entity->sixteenth = '20.0005';
+
+        $this->assertIsFloat($entity->sixteenth);
+        $this->assertEqualsWithDelta(20.000, $entity->sixteenth, PHP_FLOAT_EPSILON);
+
+        $entity->seventeenth = 1.25;
+
+        $this->assertIsFloat($entity->seventeenth);
+        $this->assertEqualsWithDelta(1.3, $entity->seventeenth, PHP_FLOAT_EPSILON);
+
+        $entity->seventeenth = '1.25';
+
+        $this->assertIsFloat($entity->seventeenth);
+        $this->assertEqualsWithDelta(1.3, $entity->seventeenth, PHP_FLOAT_EPSILON);
+    }
+
+    public function testCastFloatWithInvalidRoundingMode(): void
+    {
+        $this->expectException(CastException::class);
+        $this->expectExceptionMessage('Invalid rounding mode "invalidMode" for float casting.');
+
+        $entity = new class () extends Entity {
+            protected $casts = [
+                'temp' => 'float[1,invalidMode]',
+            ];
+        };
+
+        $entity->temp = '4.548';
+
+        $entity->temp; // @phpstan-ignore expr.resultUnused
+    }
+
     public function testCastDouble(): void
     {
         $entity = $this->getCastEntity();
@@ -1737,19 +1803,23 @@ final class EntityTest extends CIUnitTestCase
 
             // 'bar' is db column, 'foo' is internal representation
             protected $casts = [
-                'first'      => 'integer',
-                'second'     => 'float',
-                'third'      => 'double',
-                'fourth'     => 'string',
-                'fifth'      => 'boolean',
-                'sixth'      => 'object',
-                'seventh'    => 'array',
-                'eighth'     => 'datetime',
-                'ninth'      => 'timestamp',
-                'tenth'      => 'json',
-                'eleventh'   => 'json-array',
-                'twelfth'    => 'csv',
-                'thirteenth' => 'uri',
+                'first'       => 'integer',
+                'second'      => 'float',
+                'third'       => 'double',
+                'fourth'      => 'string',
+                'fifth'       => 'boolean',
+                'sixth'       => 'object',
+                'seventh'     => 'array',
+                'eighth'      => 'datetime',
+                'ninth'       => 'timestamp',
+                'tenth'       => 'json',
+                'eleventh'    => 'json-array',
+                'twelfth'     => 'csv',
+                'thirteenth'  => 'uri',
+                'fourteenth'  => 'float[2]',
+                'fifteenth'   => 'float[2,down]',
+                'sixteenth'   => 'float[3,even]',
+                'seventeenth' => 'float[1,odd]',
             ];
 
             public function setSeventh(string $seventh): void
