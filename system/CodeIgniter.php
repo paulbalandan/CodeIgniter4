@@ -19,7 +19,9 @@ use CodeIgniter\Exceptions\LogicException;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Filters\Filters;
 use CodeIgniter\HTTP\CLIRequest;
+use CodeIgniter\HTTP\Exceptions\FormRequestException;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
+use CodeIgniter\HTTP\FormRequest;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\Method;
 use CodeIgniter\HTTP\NonBufferedResponseInterface;
@@ -29,6 +31,8 @@ use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponsableInterface;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\HTTP\URI;
+use CodeIgniter\Router\CallableParamClassifier;
+use CodeIgniter\Router\ParamKind;
 use CodeIgniter\Router\RouteCollectionInterface;
 use CodeIgniter\Router\Router;
 use Config\App;
@@ -36,6 +40,9 @@ use Config\Cache;
 use Config\Feature;
 use Config\Services;
 use Locale;
+use ReflectionFunction;
+use ReflectionFunctionAbstract;
+use ReflectionMethod;
 use Throwable;
 
 /**
@@ -104,7 +111,7 @@ class CodeIgniter
     /**
      * Controller to use.
      *
-     * @var (Closure(mixed...): ResponseInterface|string)|string|null
+     * @var Closure|string|null
      */
     protected $controller;
 
@@ -375,7 +382,8 @@ class CodeIgniter
         if ($returned instanceof ResponseInterface) {
             $this->gatherOutput($returned);
         }
-        // Closure controller has run in startController().
+        // Closure controller has run in startController() - benchmarks were
+        // stopped there as well.
         elseif (! is_callable($this->controller)) {
             $controller = $this->createController();
 
@@ -387,9 +395,6 @@ class CodeIgniter
             Events::trigger('post_controller_constructor');
 
             $returned = $this->runController($controller);
-        } else {
-            $this->benchmark->stop('controller_constructor');
-            $this->benchmark->stop('controller');
         }
 
         // If $returned is a string, then the controller output something,
@@ -585,7 +590,14 @@ class CodeIgniter
         if (is_object($this->controller) && ($this->controller::class === 'Closure')) {
             $controller = $this->controller;
 
-            return $controller(...$this->router->params());
+            try {
+                $resolved = $this->resolveCallableParams(new ReflectionFunction($controller), $this->router->params());
+
+                return $controller(...$resolved);
+            } finally {
+                $this->benchmark->stop('controller_constructor');
+                $this->benchmark->stop('controller');
+            }
         }
 
         // No controller specified - we don't know what to do now.
@@ -662,13 +674,118 @@ class CodeIgniter
 
         // The controller method param types may not be string.
         // So cannot set `declare(strict_types=1)` in this file.
-        $output = method_exists($class, '_remap')
-            ? $class->_remap($this->method, ...$params)
-            : $class->{$this->method}(...$params);
-
-        $this->benchmark->stop('controller');
+        try {
+            if (method_exists($class, '_remap')) {
+                // FormRequest injection is not supported for _remap() because its
+                // signature is fixed to ($method, ...$params). Instantiate the
+                // FormRequest manually inside _remap() if needed.
+                $output = $class->_remap($this->method, ...$params);
+            } else {
+                $resolved = $this->resolveMethodParams($class, $this->method, $params);
+                $output   = $class->{$this->method}(...$resolved);
+            }
+        } finally {
+            $this->benchmark->stop('controller');
+        }
 
         return $output;
+    }
+
+    /**
+     * Resolves the final parameter list for a controller method call.
+     *
+     * @param list<string> $routeParams URI segments from the router.
+     *
+     * @return list<mixed>
+     */
+    private function resolveMethodParams(object $class, string $method, array $routeParams): array
+    {
+        return $this->resolveCallableParams(new ReflectionMethod($class, $method), $routeParams);
+    }
+
+    /**
+     * Shared FormRequest resolver for both controller methods and closures.
+     *
+     * Builds a sequential positional argument list for the call site.
+     * The supported signature shape is: required scalar route params first,
+     * then the FormRequest, then optional scalar params.
+     *
+     * - FormRequest subclasses are instantiated, authorized, and validated
+     *   before being injected.
+     * - Variadic non-FormRequest parameters consume all remaining URI segments.
+     * - Scalar non-FormRequest parameters consume one URI segment each.
+     * - When route segments run out, a required non-FormRequest parameter stops
+     *   iteration so PHP throws an ArgumentCountError on the call site.
+     * - Optional non-FormRequest parameters with no remaining segment are omitted
+     *   from the list; PHP then applies their declared default values.
+     *
+     * @param list<string> $routeParams URI segments from the router.
+     *
+     * @return list<mixed>
+     */
+    private function resolveCallableParams(ReflectionFunctionAbstract $reflection, array $routeParams): array
+    {
+        $resolved   = [];
+        $routeIndex = 0;
+
+        foreach ($reflection->getParameters() as $param) {
+            [$kind, $formRequestClass] = CallableParamClassifier::classify($param);
+
+            switch ($kind) {
+                case ParamKind::FormRequest:
+                    // Inject FormRequest subclasses regardless of position.
+                    $resolved[] = $this->resolveFormRequest($formRequestClass);
+
+                    continue 2;
+
+                case ParamKind::Variadic:
+                    // Consume all remaining route segments.
+                    while (array_key_exists($routeIndex, $routeParams)) {
+                        $resolved[] = $routeParams[$routeIndex++];
+                    }
+                    break 2;
+
+                case ParamKind::Scalar:
+                    // Consume the next route segment if one is available.
+                    if (array_key_exists($routeIndex, $routeParams)) {
+                        $resolved[] = $routeParams[$routeIndex++];
+
+                        continue 2;
+                    }
+
+                    // No more route segments. Required params stop iteration so
+                    // that PHP throws an ArgumentCountError on the call site.
+                    // Optional params are omitted - PHP then applies their
+                    // declared default value.
+                    if (! $param->isOptional()) {
+                        break 2;
+                    }
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Instantiates, authorizes, and validates a FormRequest class.
+     *
+     * If authorization or validation fails, the FormRequest returns a
+     * ResponseInterface. The framework wraps it in a FormRequestException
+     * (which implements ResponsableInterface) so the response is sent
+     * without reaching the controller method.
+     *
+     * @param class-string<FormRequest> $className
+     */
+    private function resolveFormRequest(string $className): FormRequest
+    {
+        $formRequest = new $className($this->request);
+        $response    = $formRequest->resolveRequest();
+
+        if ($response !== null) {
+            throw new FormRequestException($response);
+        }
+
+        return $formRequest;
     }
 
     /**

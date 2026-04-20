@@ -442,7 +442,24 @@ final class AutoRouterImproved implements AutoRouterInterface
             throw new MethodNotFoundException();
         }
 
-        if (count($refParams) < count($this->params)) {
+        // Count only parameters that consume one URI segment each. A variadic
+        // parameter absorbs any number of trailing segments, so there is no
+        // upper bound to enforce.
+        $scalarCount = 0;
+
+        foreach ($refParams as $param) {
+            [$kind] = CallableParamClassifier::classify($param);
+
+            if ($kind === ParamKind::Variadic) {
+                return;
+            }
+
+            if ($kind === ParamKind::Scalar) {
+                $scalarCount++;
+            }
+        }
+
+        if ($scalarCount < count($this->params)) {
             throw new PageNotFoundException(
                 'The param count in the URI are greater than the controller method params.'
                 . ' Handler:' . $this->controller . '::' . $this->method
