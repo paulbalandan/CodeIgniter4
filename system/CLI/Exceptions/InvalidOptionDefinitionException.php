@@ -11,13 +11,13 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace Tests\Support\Commands;
+namespace CodeIgniter\CLI\Exceptions;
 
-use CodeIgniter\CLI\BaseCommand;
+use CodeIgniter\Exceptions\InvalidArgumentException;
 
-abstract class AbstractInfo extends BaseCommand
+/**
+ * Exception thrown when an invalid option definition is provided for a spark command.
+ */
+final class InvalidOptionDefinitionException extends InvalidArgumentException
 {
-    protected $group       = 'demo';
-    protected $name        = 'app:pablo';
-    protected $description = 'Displays basic application information.';
 }

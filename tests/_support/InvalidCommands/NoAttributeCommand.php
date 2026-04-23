@@ -11,18 +11,14 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace Tests\Support\Commands;
+namespace Tests\Support\InvalidCommands;
 
-/**
- * Mock command that simulates missing POSIX extension
- */
-class SignalCommandNoPosix extends SignalCommand
+use CodeIgniter\CLI\AbstractCommand;
+
+final class NoAttributeCommand extends AbstractCommand
 {
-    /**
-     * Override to simulate POSIX not being available
-     */
-    protected function isPosixAvailable(): bool
+    protected function execute(array $arguments, array $options): int
     {
-        return false;
+        return EXIT_SUCCESS;
     }
 }

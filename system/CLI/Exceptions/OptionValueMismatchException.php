@@ -11,18 +11,13 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace Tests\Support\Commands;
+namespace CodeIgniter\CLI\Exceptions;
+
+use CodeIgniter\Exceptions\RuntimeException;
 
 /**
- * Mock command that simulates missing PCNTL extension
+ * Exception thrown when a provided option value does not match its definition.
  */
-class SignalCommandNoPcntl extends SignalCommand
+final class OptionValueMismatchException extends RuntimeException
 {
-    /**
-     * Override to simulate PCNTL not being available
-     */
-    protected function isPcntlAvailable(): bool
-    {
-        return false;
-    }
 }
