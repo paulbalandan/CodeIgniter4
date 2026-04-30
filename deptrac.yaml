@@ -99,6 +99,10 @@ deptrac:
       collectors:
         - type: classNameRegex
           value: '/^CodeIgniter\\Language\\.*$/'
+    - name: Lock
+      collectors:
+        - type: classNameRegex
+          value: '/^CodeIgniter\\Lock\\.*$/'
     - name: Log
       collectors:
         - type: classNameRegex
@@ -207,6 +211,8 @@ deptrac:
     Images:
       - Files
       - I18n
+    Lock:
+      - Cache
     Model:
       - Database
       - DataCaster

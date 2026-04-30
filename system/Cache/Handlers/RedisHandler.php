@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 namespace CodeIgniter\Cache\Handlers;
 
+use CodeIgniter\Cache\LockStoreInterface;
+use CodeIgniter\Cache\LockStoreProviderInterface;
+use CodeIgniter\Cache\LockStores\RedisLockStore;
 use CodeIgniter\Exceptions\CriticalError;
 use CodeIgniter\I18n\Time;
 use Config\Cache;
@@ -24,7 +27,7 @@ use RedisException;
  *
  * @see \CodeIgniter\Cache\Handlers\RedisHandlerTest
  */
-class RedisHandler extends BaseHandler
+class RedisHandler extends BaseHandler implements LockStoreProviderInterface
 {
     /**
      * Default config
@@ -54,6 +57,8 @@ class RedisHandler extends BaseHandler
      */
     protected $redis;
 
+    private ?LockStoreInterface $lockStore = null;
+
     /**
      * Note: Use `CacheFactory::getHandler()` to instantiate.
      */
@@ -68,7 +73,8 @@ class RedisHandler extends BaseHandler
     {
         $config = $this->config;
 
-        $this->redis = new Redis();
+        $this->redis     = new Redis();
+        $this->lockStore = null;
 
         try {
             $funcConnection = isset($config['persistent']) && $config['persistent'] ? 'pconnect' : 'connect';
@@ -217,6 +223,13 @@ class RedisHandler extends BaseHandler
     public function isSupported(): bool
     {
         return extension_loaded('redis');
+    }
+
+    public function lockStore(): LockStoreInterface
+    {
+        assert($this->redis instanceof Redis);
+
+        return $this->lockStore ??= new RedisLockStore($this->redis, $this->prefix);
     }
 
     public function ping(): bool

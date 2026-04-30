@@ -14,6 +14,8 @@ declare(strict_types=1);
 namespace CodeIgniter\Cache\Handlers;
 
 use CodeIgniter\Cache\CacheFactory;
+use CodeIgniter\Cache\LockStoreInterface;
+use CodeIgniter\Cache\LockStoreProviderInterface;
 use CodeIgniter\CLI\CLI;
 use CodeIgniter\I18n\Time;
 use Config\Cache;
@@ -45,10 +47,18 @@ final class PredisHandlerTest extends AbstractHandlerTestCase
 
         $this->config  = new Cache();
         $this->handler = CacheFactory::getHandler($this->config, 'predis');
+
+        if ($this->handler::class !== PredisHandler::class) {
+            $this->markTestSkipped('Predis connection not available.');
+        }
     }
 
     protected function tearDown(): void
     {
+        if (! isset($this->handler)) {
+            return;
+        }
+
         foreach (self::getKeyArray() as $key) {
             $this->handler->delete($key);
         }
@@ -102,6 +112,25 @@ final class PredisHandlerTest extends AbstractHandlerTestCase
     public function testSave(): void
     {
         $this->assertTrue($this->handler->save(self::$key1, 'value'));
+    }
+
+    public function testLockOperations(): void
+    {
+        $handler = $this->handler;
+
+        $this->assertInstanceOf(LockStoreProviderInterface::class, $handler);
+
+        $store = $handler->lockStore();
+
+        $this->assertInstanceOf(LockStoreInterface::class, $store);
+        $this->assertTrue($store->acquireLock(self::$key1, 'owner1', 60));
+        $this->assertFalse($store->acquireLock(self::$key1, 'owner2', 60));
+        $this->assertSame('owner1', $store->getLockOwner(self::$key1));
+        $this->assertFalse($store->releaseLock(self::$key1, 'owner2'));
+        $this->assertTrue($store->refreshLock(self::$key1, 'owner1', 120));
+        $this->assertTrue($store->releaseLock(self::$key1, 'owner1'));
+        $this->assertNull($store->getLockOwner(self::$key1));
+        $this->assertTrue($store->forceReleaseLock(self::$key1));
     }
 
     public function testSavePermanent(): void
@@ -199,11 +228,18 @@ final class PredisHandlerTest extends AbstractHandlerTestCase
 
     public function testReconnect(): void
     {
-        $this->handler->save(self::$key1, 'value');
-        $this->assertSame('value', $this->handler->get(self::$key1));
+        $handler = $this->handler;
 
-        $this->assertTrue($this->handler->reconnect());
+        $this->assertInstanceOf(LockStoreProviderInterface::class, $handler);
 
-        $this->assertSame('value', $this->handler->get(self::$key1));
+        $lockStore = $handler->lockStore();
+
+        $handler->save(self::$key1, 'value');
+        $this->assertSame('value', $handler->get(self::$key1));
+
+        $this->assertTrue($handler->reconnect());
+
+        $this->assertSame('value', $handler->get(self::$key1));
+        $this->assertNotSame($lockStore, $handler->lockStore());
     }
 }
