@@ -1067,6 +1067,52 @@ abstract class BaseConnection implements ConnectionInterface
     }
 
     /**
+     * Run the callback inside a transaction.
+     *
+     * @template TReturn
+     *
+     * @param callable(self): TReturn $callback
+     *
+     * @return false|TReturn
+     */
+    public function transaction(callable $callback): mixed
+    {
+        if (! $this->transEnabled) {
+            return $callback($this);
+        }
+
+        if (! $this->transBegin()) {
+            return false;
+        }
+
+        try {
+            $result = $callback($this);
+        } catch (Throwable $e) {
+            try {
+                $this->transRollback();
+            } catch (Throwable $rollbackException) {
+                log_message('error', 'Database: Transaction callback threw an exception before rollback failed: ' . $e);
+
+                throw $rollbackException;
+            } finally {
+                if ($this->transDepth > 0) {
+                    $this->transStatus = false;
+                } elseif ($this->transStrict === false) {
+                    $this->transStatus = true;
+                }
+            }
+
+            throw $e;
+        }
+
+        if (! $this->transComplete()) {
+            return false;
+        }
+
+        return $result;
+    }
+
+    /**
      * Begin Transaction
      */
     public function transBegin(bool $testMode = false): bool

@@ -134,6 +134,17 @@ interface ConnectionInterface
     public function afterRollback(callable $callback): static;
 
     /**
+     * Run the callback inside a transaction.
+     *
+     * @template TReturn
+     *
+     * @param callable(self): TReturn $callback
+     *
+     * @return false|TReturn
+     */
+    public function transaction(callable $callback): mixed;
+
+    /**
      * Returns an instance of the query builder for this connection.
      *
      * @param array|string $tableName Table name.
