@@ -966,14 +966,7 @@ trait TimeTrait
      */
     public function sameAs($testTime, ?string $timezone = null): bool
     {
-        if ($testTime instanceof DateTimeInterface) {
-            $testTime = $testTime->format('Y-m-d H:i:s.u O');
-        } elseif (is_string($testTime)) {
-            $timezone = in_array($timezone, [null, '', '0'], true) ? $this->timezone : $timezone;
-            $timezone = $timezone instanceof DateTimeZone ? $timezone : new DateTimeZone($timezone);
-            $testTime = new DateTime($testTime, $timezone);
-            $testTime = $testTime->format('Y-m-d H:i:s.u O');
-        }
+        $testTime = $this->normalizeTime($testTime, $timezone)->format('Y-m-d H:i:s.u O');
 
         $ourTime = $this->format('Y-m-d H:i:s.u O');
 
@@ -1022,6 +1015,63 @@ trait TimeTrait
         }
 
         return $ourTimestamp > $testTimestamp;
+    }
+
+    /**
+     * Determines if the current instance's time is between two others.
+     *
+     * If $start is after $end, the arguments are swapped.
+     *
+     * @param string|null $timezone Used only when $start or $end is a string.
+     *
+     * @throws Exception
+     */
+    public function between(DateTimeInterface|string $start, DateTimeInterface|string $end, bool $inclusive = true, ?string $timezone = null): bool
+    {
+        $start = $this->normalizeTime($start, $timezone);
+        $end   = $this->normalizeTime($end, $timezone);
+
+        if ($start->isAfter($end)) {
+            [$start, $end] = [$end, $start];
+        }
+
+        if ($inclusive) {
+            return ! $this->isBefore($start) && ! $this->isAfter($end);
+        }
+
+        return $this->isAfter($start) && $this->isBefore($end);
+    }
+
+    /**
+     * Returns the earlier of the current instance and the provided time.
+     *
+     * If null is provided, compares against now in the current timezone.
+     *
+     * @param string|null $timezone Used only when $time is a string or null.
+     *
+     * @throws Exception
+     */
+    public function min(DateTimeInterface|string|null $time = null, ?string $timezone = null): static
+    {
+        $time = $this->normalizeTime($time, $timezone);
+
+        return $this->isAfter($time) ? $time : $this;
+    }
+
+    /**
+     * Returns the later of the current instance and the provided time.
+     *
+     * If null is provided, compares against now in the current timezone.
+     *
+     * @param string|null $timezone Used only when $time is a string or null.
+     *
+     * @throws Exception
+     */
+    public function max(DateTimeInterface|string|null $time = null, ?string $timezone = null): static
+    {
+        $time = $this->normalizeTime($time, $timezone);
+
+        return $this->isBefore($time) ? $time : $this;
     }
 
     /**
@@ -1114,17 +1164,10 @@ trait TimeTrait
      */
     public function difference($testTime, ?string $timezone = null)
     {
-        if (is_string($testTime)) {
-            $timezone = ($timezone !== null) ? new DateTimeZone($timezone) : $this->timezone;
-            $testTime = new DateTime($testTime, $timezone);
-        } elseif ($testTime instanceof static) {
-            $testTime = $testTime->toDateTime();
-        }
-
-        assert($testTime instanceof DateTime);
+        $testTime = $this->normalizeTime($testTime, $timezone)->toDateTime();
 
         if ($this->timezone->getOffset($this) !== $testTime->getTimezone()->getOffset($this)) {
-            $testTime = $this->getUTCObject($testTime, $timezone);
+            $testTime = $this->getUTCObject($testTime);
             $ourTime  = $this->getUTCObject($this);
         } else {
             $ourTime = $this->toDateTime();
@@ -1157,10 +1200,34 @@ trait TimeTrait
         }
 
         if ($time instanceof DateTime || $time instanceof DateTimeImmutable) {
-            $time = $time->setTimezone(new DateTimeZone('UTC'));
+            return $time->setTimezone(new DateTimeZone('UTC'));
         }
 
         return $time;
+    }
+
+    /**
+     * Returns a Time instance normalized to the current locale.
+     *
+     * If $time is a string, it will be parsed using the provided timezone,
+     * or the current instance's timezone when omitted. If null is provided,
+     * the current time is used in the same timezone.
+     *
+     * @throws Exception
+     */
+    private function normalizeTime(DateTimeInterface|string|null $time, ?string $timezone = null): static
+    {
+        if ($time instanceof DateTimeInterface) {
+            return static::createFromInstance($time, $this->locale);
+        }
+
+        $timezone = in_array($timezone, [null, '', '0'], true) ? $this->timezone : $timezone;
+
+        if ($time === null) {
+            return static::now($timezone, $this->locale);
+        }
+
+        return new static($time, $timezone, $this->locale);
     }
 
     /**
