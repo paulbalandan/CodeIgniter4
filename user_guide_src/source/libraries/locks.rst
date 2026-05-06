@@ -19,9 +19,10 @@ critical section, and release it when the work is finished.
 Configuration
 *************
 
-The Locks library uses the Cache service. The cache handler must support atomic
-lock operations. The built-in **File**, **Redis**, and **Predis** cache handlers
-support locks.
+The Locks library uses the Cache service. The cache handler must support
+owner-aware lock operations. The built-in **File**, **Redis**, and **Predis**
+cache handlers support atomic lock operations. The **Memcached** cache handler
+also supports locks, with Memcached-specific limitations described below.
 
 .. note:: Locks are most useful when all competing processes share the same cache
     storage. The File handler is suitable for a single server. For multiple
@@ -32,6 +33,15 @@ support locks.
     Redis ``FLUSHDB``, may remove active locks. Avoid clearing shared lock
     storage while lock-protected work is running, or use a dedicated cache
     store for locks when that separation is important.
+
+.. note:: Memcached lock support requires the ``memcached`` PHP extension.
+    The older ``memcache`` extension does not provide the CAS operations used
+    for owner-aware refresh and best-effort release. Memcached does not provide
+    an atomic compare-and-delete command, so releasing a Memcached lock cannot
+    provide the same owner-checked atomic release guarantee as Redis or Predis.
+    A delayed release may delete a lock that expired and was acquired by another
+    owner. Memcached locks may also be lost if the Memcached server restarts,
+    evicts keys, or flushes its cache.
 
 .. note:: File-backed locks clear released and expired lock contents, but may
     leave empty lock files in the cache directory. These files do not represent
