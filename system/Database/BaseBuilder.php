@@ -737,6 +737,97 @@ class BaseBuilder
     }
 
     /**
+     * Generates a WHERE clause that compares two columns.
+     *
+     * @param non-empty-string $first  First column name, optionally with comparison operator
+     * @param non-empty-string $second Second column name
+     * @param bool|null        $escape Whether to protect identifiers
+     *
+     * @return $this
+     *
+     * @throws InvalidArgumentException
+     */
+    public function whereColumn(string $first, string $second, ?bool $escape = null): static
+    {
+        return $this->whereColumnHaving('QBWhere', $first, $second, 'AND ', $escape);
+    }
+
+    /**
+     * Generates an OR WHERE clause that compares two columns.
+     *
+     * @param non-empty-string $first  First column name, optionally with comparison operator
+     * @param non-empty-string $second Second column name
+     * @param bool|null        $escape Whether to protect identifiers
+     *
+     * @return $this
+     *
+     * @throws InvalidArgumentException
+     */
+    public function orWhereColumn(string $first, string $second, ?bool $escape = null): static
+    {
+        return $this->whereColumnHaving('QBWhere', $first, $second, 'OR ', $escape);
+    }
+
+    /**
+     * @used-by whereColumn()
+     * @used-by orWhereColumn()
+     *
+     * @param 'QBHaving'|'QBWhere' $qbKey
+     * @param non-empty-string     $first  First column name, optionally with comparison operator
+     * @param non-empty-string     $second Second column name
+     * @param non-empty-string     $type
+     * @param bool|null            $escape Whether to protect identifiers
+     *
+     * @return $this
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function whereColumnHaving(string $qbKey, string $first, string $second, string $type = 'AND ', ?bool $escape = null): static
+    {
+        [$first, $operator] = $this->parseWhereColumnFirst($first);
+        $second             = trim($second);
+
+        if ($first === '' || $second === '') {
+            $caller = debug_backtrace(0, 2)[1]['function'];
+
+            throw new InvalidArgumentException(sprintf('%s() expects $first and $second to be non-empty strings', $caller));
+        }
+
+        $escape ??= $this->db->protectIdentifiers;
+
+        $prefix = $this->{$qbKey} === [] ? $this->groupGetType('') : $this->groupGetType($type);
+
+        $this->{$qbKey}[] = [
+            'columnComparison' => true,
+            'condition'        => $prefix,
+            'escape'           => $escape,
+            'first'            => $first,
+            'operator'         => $operator,
+            'second'           => $second,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Extracts the operator from the first whereColumn() column.
+     *
+     * @param string $first The first column, optionally ending with a comparison operator
+     *
+     * @return array{string, string}
+     */
+    private function parseWhereColumnFirst(string $first): array
+    {
+        $first = trim($first);
+
+        if (preg_match('/\s*(!=|<>|<=|>=|=|<|>)\s*$/', $first, $match) === 1) {
+            return [rtrim(substr($first, 0, -strlen($match[0]))), trim($match[1])];
+        }
+
+        return [$first, '='];
+    }
+
+    /**
      * @used-by where()
      * @used-by orWhere()
      * @used-by having()
@@ -1383,6 +1474,7 @@ class BaseBuilder
      * @used-by _like()
      * @used-by whereHaving()
      * @used-by _whereIn()
+     * @used-by whereColumnHaving()
      * @used-by havingGroupStart()
      */
     protected function groupGetType(string $type): string
@@ -3114,6 +3206,12 @@ class BaseBuilder
                     continue;
                 }
 
+                if (($qbkey['columnComparison'] ?? false) === true) {
+                    $qbkey = $this->compileColumnComparison($qbkey);
+
+                    continue;
+                }
+
                 if ($qbkey['escape'] === false) {
                     $qbkey = $qbkey['condition'];
 
@@ -3175,6 +3273,21 @@ class BaseBuilder
         }
 
         return '';
+    }
+
+    /**
+     * @used-by compileWhereHaving()
+     *
+     * @param array{columnComparison: true, condition: string, escape: bool, first: string, operator: string, second: string} $condition
+     */
+    private function compileColumnComparison(array $condition): string
+    {
+        if ($condition['escape']) {
+            $condition['first']  = $this->db->protectIdentifiers($condition['first'], false, true);
+            $condition['second'] = $this->db->protectIdentifiers($condition['second'], false, true);
+        }
+
+        return $condition['condition'] . $condition['first'] . ' ' . $condition['operator'] . ' ' . $condition['second'];
     }
 
     /**

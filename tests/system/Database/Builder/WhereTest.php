@@ -15,6 +15,7 @@ namespace CodeIgniter\Database\Builder;
 
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\RawSql;
+use CodeIgniter\Exceptions\InvalidArgumentException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\Mock\MockConnection;
 use DateTime;
@@ -349,6 +350,143 @@ final class WhereTest extends CIUnitTestCase
 
         $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
         $this->assertSame($expectedBinds, $builder->getBinds());
+    }
+
+    #[DataProvider('provideWhereColumnWithOperators')]
+    public function testWhereColumnWithOperators(string $first, string $operator): void
+    {
+        $builder = $this->db->table('users');
+
+        $builder->whereColumn($first, 'updated_at');
+
+        $expectedSQL   = sprintf('SELECT * FROM "users" WHERE "created_at" %s "updated_at"', $operator);
+        $expectedBinds = [];
+
+        $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
+        $this->assertSame($expectedBinds, $builder->getBinds());
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function provideWhereColumnWithOperators(): iterable
+    {
+        return [
+            'default' => ['created_at', '='],
+            '='       => ['created_at =', '='],
+            '!='      => ['created_at !=', '!='],
+            '<>'      => ['created_at <>', '<>'],
+            '<'       => ['created_at <', '<'],
+            '>'       => ['created_at >', '>'],
+            '<='      => ['created_at <=', '<='],
+            '>='      => ['created_at >=', '>='],
+        ];
+    }
+
+    public function testWhereColumnWithAlias(): void
+    {
+        $builder = $this->db->table('users u');
+
+        $builder->whereColumn('u.updated_at >', 'u.created_at');
+
+        $expectedSQL   = 'SELECT * FROM "users" "u" WHERE "u"."updated_at" > "u"."created_at"';
+        $expectedBinds = [];
+
+        $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
+        $this->assertSame($expectedBinds, $builder->getBinds());
+    }
+
+    public function testOrWhereColumn(): void
+    {
+        $builder = $this->db->table('users');
+
+        $builder->where('active', 1)
+            ->orWhereColumn('updated_at >', 'created_at');
+
+        $expectedSQL   = 'SELECT * FROM "users" WHERE "active" = 1 OR "updated_at" > "created_at"';
+        $expectedBinds = [
+            'active' => [
+                1,
+                true,
+            ],
+        ];
+
+        $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
+        $this->assertSame($expectedBinds, $builder->getBinds());
+    }
+
+    public function testWhereColumnWithGroupedConditions(): void
+    {
+        $builder = $this->db->table('users');
+
+        $builder->groupStart()
+            ->whereColumn('created_at', 'updated_at')
+            ->orWhereColumn('updated_at >', 'created_at')
+            ->groupEnd()
+            ->where('active', 1);
+
+        $expectedSQL = 'SELECT * FROM "users" WHERE   ( "created_at" = "updated_at" OR "updated_at" > "created_at"  ) AND "active" = 1';
+
+        $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
+    }
+
+    public function testWhereColumnNoEscape(): void
+    {
+        $builder = $this->db->table('users');
+
+        $builder->whereColumn('LOWER(users.email)', 'normalized_email', escape: false);
+
+        $expectedSQL   = 'SELECT * FROM "users" WHERE LOWER(users.email) = normalized_email';
+        $expectedBinds = [];
+
+        $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
+        $this->assertSame($expectedBinds, $builder->getBinds());
+    }
+
+    public function testWhereColumnTreatsSecondArgumentAsColumnName(): void
+    {
+        $builder = $this->db->table('users');
+
+        $builder->whereColumn('created_at', 'like');
+
+        $expectedSQL   = 'SELECT * FROM "users" WHERE "created_at" = "like"';
+        $expectedBinds = [];
+
+        $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
+        $this->assertSame($expectedBinds, $builder->getBinds());
+    }
+
+    public function testWhereColumnIgnoresOperatorsInsideFirstArgument(): void
+    {
+        $builder = $this->db->table('users');
+
+        $builder->whereColumn("JSON_EXTRACT(data, '$.a>b')", 'updated_at', escape: false);
+
+        $expectedSQL   = 'SELECT * FROM "users" WHERE JSON_EXTRACT(data, \'$.a>b\') = updated_at';
+        $expectedBinds = [];
+
+        $this->assertSame($expectedSQL, str_replace("\n", ' ', $builder->getCompiledSelect()));
+        $this->assertSame($expectedBinds, $builder->getBinds());
+    }
+
+    #[DataProvider('provideWhereColumnInvalidColumnThrowInvalidArgumentException')]
+    public function testWhereColumnInvalidColumnThrowInvalidArgumentException(string $first, string $second): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $builder = $this->db->table('users');
+        $builder->whereColumn($first, $second);
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function provideWhereColumnInvalidColumnThrowInvalidArgumentException(): iterable
+    {
+        return [
+            'empty first column'  => ['', 'updated_at'],
+            'empty second column' => ['created_at =', ''],
+        ];
     }
 
     public function testWhereIn(): void

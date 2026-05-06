@@ -365,6 +365,36 @@ instances are joined by **OR**:
 
 .. literalinclude:: query_builder/029.php
 
+.. _query-builder-where-column:
+
+$builder->whereColumn()
+-----------------------
+
+.. versionadded:: 4.8.0
+
+Compares one column to another column. If the first parameter does not end with
+a supported operator, ``=`` is used:
+
+.. literalinclude:: query_builder/123.php
+
+You can include a supported operator at the end of the first parameter in order
+to control the comparison. Supported operators are ``=``, ``!=``, ``<>``, ``<``,
+``>``, ``<=``, and ``>=``. If none of these operators is detected at the end of the first
+parameter, ``=`` is used. Empty
+column names throw an ``InvalidArgumentException``.
+
+Column names are protected by default, unless the ``$escape`` parameter is
+``false``.
+
+.. warning:: Do not pass user-supplied data as column names. Values should use
+    ``where()`` or another value-binding method instead.
+
+$builder->orWhereColumn()
+-------------------------
+
+This method is identical to ``whereColumn()``, except that multiple instances
+are joined by **OR**.
+
 $builder->whereIn()
 -------------------
 
@@ -1533,6 +1563,30 @@ Class Reference
         :rtype:     ``BaseBuilder``
 
         Generates the ``WHERE`` portion of the query. Separates multiple calls with ``OR``.
+
+    .. php:method:: whereColumn($first, $second[, $escape = null])
+
+        :param string $first: First column name, optionally ending with a supported comparison operator
+        :param string $second: Second column name
+        :param bool $escape: Whether to protect identifiers
+        :returns:   ``BaseBuilder`` instance (method chaining)
+        :rtype:     ``BaseBuilder``
+
+        Generates a ``WHERE`` clause that compares two columns. Separates multiple calls with ``AND``.
+        If ``$first`` does not end with a supported operator, ``=`` is used as the comparison operator.
+        Supported operators are ``=``, ``!=``, ``<>``, ``<``, ``>``, ``<=``, and ``>=``.
+
+    .. php:method:: orWhereColumn($first, $second[, $escape = null])
+
+        :param string $first: First column name, optionally ending with a supported comparison operator
+        :param string $second: Second column name
+        :param bool $escape: Whether to protect identifiers
+        :returns:   ``BaseBuilder`` instance (method chaining)
+        :rtype:     ``BaseBuilder``
+
+        Generates a ``WHERE`` clause that compares two columns. Separates multiple calls with ``OR``.
+        If ``$first`` does not end with a supported operator, ``=`` is used as the comparison operator.
+        Supported operators are ``=``, ``!=``, ``<>``, ``<``, ``>``, ``<=``, and ``>=``.
 
     .. php:method:: orWhereIn([$key = null[, $values = null[, $escape = null]]])
 
