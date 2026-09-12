@@ -13,116 +13,83 @@ declare(strict_types=1);
 
 namespace CodeIgniter\Commands\Generators;
 
-use CodeIgniter\CLI\BaseCommand;
-use CodeIgniter\CLI\CLI;
-use CodeIgniter\CLI\GeneratorTrait;
+use CodeIgniter\CLI\AbstractGeneratorCommand;
+use CodeIgniter\CLI\Attributes\Command;
+use CodeIgniter\CLI\Attributes\GeneratorCommand;
+use CodeIgniter\CLI\Input\Option;
 use Config\Database;
 use Config\Migrations;
 use Config\Session as SessionConfig;
 
-/**
- * Generates a skeleton migration file.
- */
-class MigrationGenerator extends BaseCommand
+#[Command(name: 'make:migration', description: 'Generates a new migration file.', group: 'Generators')]
+#[GeneratorCommand(
+    component: 'Migration',
+    template: 'migration.tpl.php',
+    directory: 'Database\Migrations',
+    classNameLang: 'CLI.generator.className.migration',
+)]
+class MigrationGenerator extends AbstractGeneratorCommand
 {
-    use GeneratorTrait;
-
-    /**
-     * The Command's Group
-     *
-     * @var string
-     */
-    protected $group = 'Generators';
-
-    /**
-     * The Command's Name
-     *
-     * @var string
-     */
-    protected $name = 'make:migration';
-
-    /**
-     * The Command's Description
-     *
-     * @var string
-     */
-    protected $description = 'Generates a new migration file.';
-
-    /**
-     * The Command's Usage
-     *
-     * @var string
-     */
-    protected $usage = 'make:migration <name> [options]';
-
-    /**
-     * The Command's Arguments
-     *
-     * @var array<string, string>
-     */
-    protected $arguments = [
-        'name' => 'The migration class name.',
-    ];
-
-    /**
-     * The Command's Options
-     *
-     * @var array<string, string>
-     */
-    protected $options = [
-        '--session'   => 'Generates the migration file for database sessions.',
-        '--table'     => 'Table name to use for database sessions. Default: "ci_sessions".',
-        '--dbgroup'   => 'Database group to use for database sessions. Default: "default".',
-        '--namespace' => 'Set root namespace. Default: "APP_NAMESPACE".',
-        '--suffix'    => 'Append the component title to the class name (e.g. User => UserMigration).',
-    ];
-
-    /**
-     * Actually execute a command.
-     */
-    public function run(array $params)
+    protected function configure(): void
     {
-        $this->component = 'Migration';
-        $this->directory = 'Database\Migrations';
-        $this->template  = 'migration.tpl.php';
+        parent::configure();
 
-        if (array_key_exists('session', $params) || CLI::getOption('session')) {
-            $table     = $params['table'] ?? CLI::getOption('table') ?? 'ci_sessions';
-            $params[0] = "_create_{$table}_table";
-        }
-
-        $this->classNameLang = 'CLI.generator.className.migration';
-        $this->generateClass($params);
-
-        return EXIT_SUCCESS;
+        $this
+            ->addOption(new Option(
+                name: 'session',
+                description: 'Generate the migration file for database sessions.',
+            ))
+            ->addOption(new Option(
+                name: 'table',
+                shortcut: 't',
+                description: 'Table name to use for database sessions.',
+                requiresValue: true,
+                default: 'ci_sessions',
+            ))
+            ->addOption(new Option(
+                name: 'dbgroup',
+                shortcut: 'g',
+                description: 'Database group to use for database sessions.',
+                requiresValue: true,
+                valueLabel: 'group',
+                default: 'default',
+            ));
     }
 
-    /**
-     * Prepare options and do the necessary replacements.
-     */
-    protected function prepare(string $class): string
+    protected function provideGeneratorOptions(): void
     {
-        $data            = [];
-        $data['session'] = false;
-
-        if ($this->getOption('session')) {
-            $table   = $this->getOption('table');
-            $DBGroup = $this->getOption('dbgroup');
-
-            $data['session']  = true;
-            $data['table']    = is_string($table) ? $table : 'ci_sessions';
-            $data['DBGroup']  = is_string($DBGroup) ? $DBGroup : 'default';
-            $data['DBDriver'] = config(Database::class)->{$data['DBGroup']}['DBDriver'];
-
-            $data['matchIP'] = config(SessionConfig::class)->matchIP;
-        }
-
-        return $this->parseTemplate($class, [], [], $data);
+        $this->addNamespaceOption()->addSuffixOption();
     }
 
-    /**
-     * Change file basename before saving.
-     */
+    protected function initialize(array &$arguments, array &$options): void
+    {
+        if (! $this->hasUnboundOption('session', $options)) {
+            return;
+        }
+
+        $table = $this->getUnboundOption('table', $options);
+
+        $arguments[0] = sprintf('_create_%s_table', is_string($table) ? $table : 'ci_sessions');
+    }
+
+    protected function getTemplateData(string $class): array
+    {
+        if ($this->getValidatedOption('session') !== true) {
+            return ['session' => false];
+        }
+
+        $group = $this->getValidatedOption('dbgroup');
+        assert(is_string($group));
+
+        return [
+            'session'  => true,
+            'table'    => $this->getValidatedOption('table'),
+            'DBGroup'  => $group,
+            'DBDriver' => config(Database::class)->{$group}['DBDriver'],
+            'matchIP'  => config(SessionConfig::class)->matchIP,
+        ];
+    }
+
     protected function basename(string $filename): string
     {
         return gmdate(config(Migrations::class)->timestampFormat) . basename($filename);
